@@ -38,11 +38,22 @@ input,select,textarea{font:inherit;padding:8px 10px;border:1.5px solid var(--lin
 .opts input{width:90px;padding:6px 8px}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 a{color:var(--deep)}
+.stat{font:inherit;text-align:left;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px}
+.stat:hover{border-color:var(--deep)}.stat.hot{background:#FFF4E2;border-color:#E8C98A}.stat.money b{color:var(--leaf)}
+.sec{margin:18px 0 8px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.acts{margin-top:10px;justify-content:flex-start;gap:6px}
+.tbl{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+.tbl table{min-width:640px}.tbl tbody tr{cursor:pointer}.tbl tbody tr:hover{background:#F6F2E8}
+th{font-size:13px;color:var(--muted);font-weight:700}
+#pane{position:fixed;inset:0;z-index:30;background:rgba(15,25,17,.45);display:none;justify-content:flex-end}
+#pane.open{display:flex}#paneIn{background:var(--cream);width:min(640px,100%);height:100%;overflow:auto;padding:18px}
+.tabs{position:sticky;top:56px;z-index:4;background:var(--cream);padding:8px 0;overflow-x:auto;flex-wrap:nowrap}.tabs button{white-space:nowrap}
 </style>
 </head>
 <body>
 <header><img src="assets/logo-h.png" alt="Annadata Fresh Mart"><span id="who"></span></header>
 <main id="app"><p>Loading…</p></main>
+<div id="pane" onclick="if(event.target===this)this.classList.remove('open')"><div id="paneIn"></div></div>
 <script src="assets/supabase.js"></script>
 <script src="config.js"></script>
 <script>
@@ -51,8 +62,8 @@ const $ = s => document.querySelector(s), app = $("#app");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = n => "₹" + Number(n || 0).toLocaleString("en-IN");
 const dt = s => new Date(s).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-const ST = { awaiting_payment: "Payment baaki", placed: "Naya order", confirmed: "Confirmed", out_for_delivery: "Raste mein", delivered: "Delivered", cancelled: "Cancelled" };
-let tab = "orders", filter = "open", email = "";
+const ST = { awaiting_payment: "UPI payment check", placed: "Naya: confirm karo", confirmed: "Confirmed", out_for_delivery: "Raste mein", delivered: "Delivered", cancelled: "Cancelled" };
+let tab = "home", filter = "new", email = "", CUST_Q = "", PAY_DAYS = 30;
 
 async function start() {
   const { data: { session } } = await sb.auth.getSession();
@@ -73,30 +84,98 @@ function google() { sb.auth.signInWithOAuth({ provider: "google", options: { red
 async function logout() { await sb.auth.signOut({ scope: "local" }); location.reload(); }
 
 function render() {
-  app.innerHTML = `<div class="tabs" role="tablist">${[["orders", "Orders"], ["riders", "Delivery boys"], ["complaints", "Shikayat"], ["members", "Membership"], ["products", "Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
-  ({ orders, riders, complaints, members, products })[tab]();
+  app.innerHTML = `<div class="tabs" role="tablist">${[["home", "🏠 Dashboard"], ["orders", "📦 Orders"], ["customers", "👥 Customers"], ["payments", "💰 Payments"], ["riders", "🛵 Delivery boys"], ["complaints", "⚠️ Shikayat"], ["members", "💳 Membership"], ["products", "🥬 Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
+  ({ home, orders, customers, payments, riders, complaints, members, products })[tab]();
 }
 async function names(ids) { const { data } = await sb.from("profiles").select("id,full_name,phone,email").in("id", [...new Set(ids)]); return Object.fromEntries((data || []).map(p => [p.id, p])); }
 
 let RIDERS = [];
 async function loadRiders() { const { data } = await sb.rpc("admin_riders"); RIDERS = data || []; return RIDERS; }
+function go(t, f) { tab = t; if (f) filter = f; render(); scrollTo(0, 0); }
+async function home() {
+  const { data: d, error } = await sb.rpc("admin_dashboard");
+  if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
+  const tile = (n, l, act, cls) => `<button class="stat ${cls || ""}" onclick="${act}"><b>${n}</b>${l}</button>`;
+  $("#body").innerHTML = `<h3 class="sec">Abhi karna hai</h3><div class="stats">
+    ${tile(d.to_confirm, "Naye order: confirm karne hain", "go('orders','new')", d.to_confirm ? "hot" : "")}
+    ${tile(d.to_assign, "Confirmed: delivery boy dena hai", "go('orders','confirmed')", d.to_assign ? "hot" : "")}
+    ${tile(d.in_progress, "Chal rahe (confirmed + raste mein)", "go('orders','active')")}
+    ${tile(d.open_complaints, "Khuli shikayat", "go('complaints')", d.open_complaints ? "hot" : "")}
+    ${tile(d.pending_memberships, "Membership payment check", "go('members')", d.pending_memberships ? "hot" : "")}</div>
+  <h3 class="sec">Aaj</h3><div class="stats">
+    ${tile(d.delivered_today, "Aaj deliver hue", "go('orders','delivered')")}
+    ${tile(fmt(d.earned_today), "Aaj ki kamaai (sirf delivered)", "go('payments')", "money")}
+    ${tile(fmt(d.received_today), "Aaj paisa aaya (cash + UPI)", "go('payments')", "money")}
+    ${tile(fmt(d.cash_pending), "Deliver ho gaya, paisa baaki", "go('payments')", d.cash_pending ? "hot" : "")}</div>
+  <h3 class="sec">Is mahine</h3><div class="stats">
+    ${tile(fmt(d.earned_month), d.orders_month + " orders deliver hue", "go('payments')", "money")}
+    ${tile(d.customers, "Customers", "go('customers')")}</div>
+  <p class="sub">Kamaai sirf <b>Delivered</b> orders ki gini jaati hai. Naya ya cancelled order kamaai mein nahi judta.</p>`;
+}
+const STAGES = { new: ["placed", "awaiting_payment"], confirmed: ["confirmed"], active: ["confirmed", "out_for_delivery"], out: ["out_for_delivery"], delivered: ["delivered"], cancelled: ["cancelled"] };
 async function orders() {
   await loadRiders();
   let q = sb.from("orders").select("*").order("created_at", { ascending: false }).limit(200);
-  if (filter === "open") q = q.in("status", ["awaiting_payment", "placed", "confirmed", "out_for_delivery"]);
+  if (STAGES[filter]) q = q.in("status", STAGES[filter]);
   const { data, error } = await q; if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
-  const today = new Date().toDateString(), tdy = data.filter(o => new Date(o.created_at).toDateString() === today && o.status !== "cancelled");
-  const status = s => `<select onchange="setStatus(${s.id},this.value)">${Object.entries(ST).map(([k, l]) => `<option value="${k}" ${k === s.status ? "selected" : ""}>${l}</option>`).join("")}</select>`;
-  $("#body").innerHTML = `<div class="stats"><div class="stat"><b>${tdy.length}</b>Aaj ke orders</div><div class="stat"><b>${fmt(tdy.reduce((a, o) => a + o.total, 0))}</b>Aaj ki bikri</div><div class="stat"><b>${data.filter(o => o.status === "placed" || o.status === "awaiting_payment").length}</b>Naye / payment baaki</div></div>
-  <div class="filters"><button class="btn s ${filter === "open" ? "p" : ""}" onclick="filter='open';orders()">Chalu orders</button><button class="btn s ${filter === "all" ? "p" : ""}" onclick="filter='all';orders()">Sab orders</button><button class="btn s" onclick="orders()">Refresh</button></div>` +
-  (data.length ? data.map(o => `<div class="card"><div class="row"><span class="b">#${o.id} · ${fmt(o.total)} · ${esc(o.name)}</span><span class="badge ${o.status === "cancelled" ? "n" : ["placed", "awaiting_payment"].includes(o.status) ? "w" : ""}">${ST[o.status] || o.status}</span></div>
-    <ul class="items">${(o.items || []).map(i => `<li>${esc(i.name)} ${i.opt ? "(" + esc(i.opt) + ")" : ""} × ${i.qty} = ${fmt(i.price * i.qty)}</li>`).join("")}${o.has_kit ? "<li>🎁 Zucchini recipe kit (WhatsApp par bhejein)</li>" : ""}</ul>
-    <div class="sub">📍 ${esc(o.address)}${o.landmark ? ", " + esc(o.landmark) : ""}<br>🕒 ${esc(o.slot)} · ordered ${dt(o.created_at)}<br>
-    📞 <a href="tel:+91${esc(o.phone)}">${esc(o.phone)}</a> · <a target="_blank" rel="noopener" href="https://wa.me/91${esc(o.phone)}?text=${encodeURIComponent("Namaste " + o.name + "! Annadata Fresh Mart: aapka order #" + o.id + " (" + fmt(o.total) + ") confirm hai. Delivery: " + o.slot)}">WhatsApp confirm bhejein</a><br>
-    💰 ${o.pay_method === "cod" ? "Delivery par payment" : o.pay_method === "wallet" ? "Wallet se paid" : "UPI"} · Items ${fmt(o.subtotal)} + delivery ${fmt(o.delivery_fee)} · ${o.paid ? "<b style='color:var(--leaf)'>PAID</b>" : "<b>Not paid</b>"}${o.upi_ref ? " · UPI ref: <b>" + esc(o.upi_ref) + "</b>" : ""}</div>
-    <div class="row" style="margin-top:8px;justify-content:flex-start">${status(o)} ${["delivered","cancelled"].includes(o.status) ? (o.rider_email ? `<span class="sub">🛵 ${esc((RIDERS.find(r=>r.email===o.rider_email)||{}).name||o.rider_email)}</span>` : "") : `<select onchange="assign(${o.id},this.value)"><option value="">🛵 Delivery boy chuno</option>${RIDERS.filter(r=>r.active).map(r=>`<option value="${esc(r.email)}" ${r.email===o.rider_email?"selected":""}>${esc(r.name)}</option>`).join("")}</select>`}${!o.paid ? ` <button class="btn s g" onclick="markPaid(${o.id})">Paid mark karo</button>` : ""}${o.delivery_fee > 0 && o.status !== "cancelled" ? ` <button class="btn s" onclick="waive(${o.id})">2 km ke andar: fee hatao</button>` : ""}</div></div>`).join("") : `<p class="sub">Koi order nahi.</p>`);
+  const f = (k, l) => `<button class="btn s ${filter === k ? "p" : ""}" onclick="filter='${k}';orders()">${l}</button>`;
+  $("#body").innerHTML = `<div class="filters">${f("new", "🆕 Naye")}${f("confirmed", "✅ Confirmed")}${f("out", "🛵 Raste mein")}${f("delivered", "📦 Delivered")}${f("cancelled", "❌ Cancelled")}${f("all", "Sab")}<button class="btn s" onclick="orders()">↻ Refresh</button></div>` +
+    (data.length ? data.map(orderCardA).join("") : `<p class="sub">Is list mein koi order nahi.</p>`);
 }
-async function assign(id, em) { const { error } = await sb.rpc("admin_assign_rider", { p_id: id, p_email: em || null }); if (error) alert(error.message); orders(); }
+function orderCardA(o) {
+  const st = o.status_times || {}, rider = RIDERS.find(r => r.email === o.rider_email);
+  let act = "";
+  if (o.status === "placed") act = `<button class="btn s p" onclick="setStatus(${o.id},'confirmed')">✅ Confirm karo</button>`;
+  if (o.status === "awaiting_payment") act = o.paid ? `<button class="btn s p" onclick="setStatus(${o.id},'confirmed')">✅ Confirm karo</button>` : `<span class="sub">UPI payment check karo, phir:</span> <button class="btn s g" onclick="markPaid(${o.id})">Payment mil gaya</button>`;
+  if (o.status === "confirmed") act = `<select onchange="assign(${o.id},this.value)"><option value="">🛵 Delivery boy chuno</option>${RIDERS.filter(r => r.active).map(r => `<option value="${esc(r.email)}" ${r.email === o.rider_email ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select>${RIDERS.length ? "" : ` <a href="#" onclick="go('riders');return false">pehle delivery boy jodo</a>`} <button class="btn s" onclick="setStatus(${o.id},'out_for_delivery')">🛵 Raste mein</button>`;
+  if (o.status === "out_for_delivery") act = `<span class="sub">🛵 ${esc(rider ? rider.name : (o.rider_email || "—"))}</span> <button class="btn s p" onclick="setStatus(${o.id},'delivered')">📦 Delivered mark karo</button>`;
+  if (["placed", "awaiting_payment", "confirmed", "out_for_delivery"].includes(o.status)) act += ` <button class="btn s r" onclick="setStatus(${o.id},'cancelled')">Cancel</button>`;
+  if (o.status === "delivered" && !o.paid) act += `<button class="btn s g" onclick="markPaid(${o.id})">💰 Paisa mil gaya</button>`;
+  if (o.delivery_fee > 0 && !["delivered", "cancelled"].includes(o.status)) act += ` <button class="btn s" onclick="waive(${o.id})">2 km ke andar: fee hatao</button>`;
+  return `<div class="card"><div class="row"><span class="b">#${o.id} · ${fmt(o.total)} · <a href="#" onclick="openCustomer('${o.user_id}');return false">${esc(o.name)}</a></span><span class="badge ${o.status === "cancelled" ? "n" : ["placed", "awaiting_payment"].includes(o.status) ? "w" : ""}">${ST[o.status] || o.status}</span></div>
+    <ul class="items">${(o.items || []).map(i => `<li>${esc(i.name)} ${i.opt ? "(" + esc(i.opt) + ")" : ""} × ${i.qty} = ${fmt(i.price * i.qty)}</li>`).join("")}${o.has_kit ? "<li>🎁 Zucchini recipe kit</li>" : ""}</ul>
+    <div class="sub">📍 ${esc(o.address)}${o.landmark ? ", " + esc(o.landmark) : ""}<br>🕒 ${esc(o.slot)} · order ${dt(o.created_at)}${st.delivered ? " · delivered " + dt(st.delivered) : ""}${rider && o.status !== "out_for_delivery" ? " · 🛵 " + esc(rider.name) : ""}<br>
+    📞 <a href="tel:+91${esc(o.phone)}">${esc(o.phone)}</a> · <a target="_blank" rel="noopener" href="https://wa.me/91${esc(o.phone)}?text=${encodeURIComponent("Namaste " + o.name + "! Annadata Fresh Mart: aapka order #" + o.id + " (" + fmt(o.total) + ") confirm hai. Delivery: " + o.slot)}">WhatsApp karo</a><br>
+    💰 ${o.pay_method === "cod" ? "Delivery par payment" : o.pay_method === "wallet" ? "Wallet se" : "UPI"} · items ${fmt(o.subtotal)} + delivery ${fmt(o.delivery_fee)} · ${o.paid ? "<b style='color:var(--leaf)'>PAID</b>" : "<b>Paisa baaki</b>"}${o.upi_ref ? " · UPI ref: <b>" + esc(o.upi_ref) + "</b>" : ""}</div>
+    <div class="row acts">${act}</div></div>`;
+}
+async function customers() {
+  const { data, error } = await sb.rpc("admin_customers", { p_search: CUST_Q || null });
+  if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
+  $("#body").innerHTML = `<div class="filters"><input id="cq" placeholder="Naam, phone, email ya area se dhundo" value="${esc(CUST_Q)}" style="flex:1;min-width:220px" onkeydown="if(event.key==='Enter'){CUST_Q=this.value;customers()}"> <button class="btn s p" onclick="CUST_Q=$('#cq').value;customers()">Dhundo</button></div>
+    <p class="sub">${data.length} customers · naam par click karo, pura data khulega</p>` +
+    (data.length ? `<div class="tbl"><table><thead><tr><th>Customer</th><th>Phone</th><th>Orders</th><th>Total shopping</th><th>Aakhri order</th></tr></thead><tbody>${data.map(c => `<tr onclick="openCustomer('${c.id}')"><td><b>${esc(c.full_name || "—")}</b><br><span class="sub">${esc(c.email || "")}</span></td><td>${esc(c.phone || "—")}</td><td>${c.orders}</td><td><b>${fmt(c.spent)}</b></td><td>${c.last_order_at ? dt(c.last_order_at) : "—"}</td></tr>`).join("")}</tbody></table></div>` : `<p class="sub">Koi customer nahi mila.</p>`);
+}
+async function openCustomer(id) {
+  if (!id || id === "null") return;
+  const pane = $("#pane"); pane.classList.add("open"); $("#paneIn").innerHTML = "<p>Loading…</p>";
+  const { data: c, error } = await sb.rpc("admin_customer", { p_id: id });
+  if (error || !c) return $("#paneIn").innerHTML = `<p class="err">${esc(error ? error.message : "Nahi mila")}</p>`;
+  const done = c.orders.filter(o => o.status === "delivered"), spent = done.reduce((a, o) => a + o.total, 0);
+  const itemsAll = {}; c.orders.filter(o => o.status !== "cancelled").forEach(o => (o.items || []).forEach(i => { itemsAll[i.name] = (itemsAll[i.name] || 0) + i.qty; }));
+  const prov = (c.providers || []).filter(Boolean).map(p => p === "google" ? "Google" : p === "email" ? "Email code" : p).join(", ");
+  $("#paneIn").innerHTML = `<button class="btn s" style="float:right" onclick="$('#pane').classList.remove('open')">✕ Band karo</button>
+    <h2 style="margin:0 0 4px">${esc(c.full_name || "—")}</h2><p class="sub">Customer since ${dt(c.joined)}</p>
+    <div class="stats"><div class="stat"><b>${c.orders.filter(o => o.status !== "cancelled").length}</b>Orders</div><div class="stat money"><b>${fmt(spent)}</b>Total shopping (delivered)</div><div class="stat"><b>${done.length ? fmt(Math.round(spent / done.length)) : "—"}</b>Average order</div><div class="stat"><b>${fmt(c.balance)}</b>Wallet</div></div>
+    <div class="card"><b>Contact</b><div class="sub" style="margin-top:6px;line-height:1.8">📧 ${esc(c.email || "—")}<br>📞 ${c.phone ? `<a href="tel:+91${esc(c.phone)}">${esc(c.phone)}</a> · <a target="_blank" rel="noopener" href="https://wa.me/91${esc(c.phone)}">WhatsApp</a>` : "—"}<br>📍 ${esc(c.address || "—")}${c.landmark ? ", " + esc(c.landmark) : ""}</div></div>
+    <div class="card"><b>Login</b><div class="sub" style="margin-top:6px;line-height:1.8">Login tareeka: ${esc(prov || "—")}<br>Account bana: ${dt(c.joined)}<br>Aakhri login: ${c.last_login ? dt(c.last_login) : "—"}</div></div>
+    ${Object.keys(itemsAll).length ? `<div class="card"><b>Kya-kya kharida</b><div class="sub" style="margin-top:6px">${Object.entries(itemsAll).sort((a, b) => b[1] - a[1]).map(([n, q]) => `${esc(n)} × ${q}`).join(" · ")}</div></div>` : ""}
+    <h3 class="sec">Saare orders</h3>${c.orders.length ? c.orders.map(o => `<div class="card"><div class="row"><span class="b">#${o.id} · ${fmt(o.total)}</span><span class="badge ${o.status === "cancelled" ? "n" : o.status === "delivered" ? "" : "w"}">${ST[o.status] || o.status}</span></div><div class="sub">${(o.items || []).map(i => `${esc(i.name)} (${esc(i.opt || "")}) × ${i.qty}`).join(", ")}<br>${dt(o.created_at)} · ${esc(o.slot || "")} · ${o.paid ? "Paid" : "Paisa baaki"}</div></div>`).join("") : `<p class="sub">Abhi koi order nahi.</p>`}
+    ${c.wallet.length ? `<h3 class="sec">Wallet</h3><div class="card">${c.wallet.map(w => `<div class="row"><span class="sub">${esc(w.note || w.kind)} · ${dt(w.created_at)}</span><b>${w.amount > 0 ? "+" : ""}${fmt(w.amount)}</b></div>`).join("")}</div>` : ""}
+    ${c.complaints.length ? `<h3 class="sec">Shikayat</h3>${c.complaints.map(x => `<div class="card"><div class="sub">Order #${x.order_id} · ${dt(x.created_at)} · ${x.status === "open" ? "Khuli" : "Hal ho gayi"}</div><p>${esc(x.message)}</p></div>`).join("")}` : ""}`;
+}
+async function payments() {
+  const { data, error } = await sb.rpc("admin_payments", { p_days: PAY_DAYS });
+  if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
+  const rows = data.rows || [], by = k => rows.filter(r => k(r)).reduce((a, r) => a + r.amount, 0);
+  const f = (d, l) => `<button class="btn s ${PAY_DAYS === d ? "p" : ""}" onclick="PAY_DAYS=${d};payments()">${l}</button>`;
+  $("#body").innerHTML = `<div class="filters">${f(1, "Aaj")}${f(7, "7 din")}${f(30, "30 din")}${f(90, "90 din")}</div>
+    <div class="stats"><div class="stat money"><b>${fmt(by(() => true))}</b>Kul paisa aaya</div><div class="stat"><b>${fmt(by(r => r.kind === "order" && r.method === "cod"))}</b>Delivery par (cash/UPI)</div><div class="stat"><b>${fmt(by(r => r.kind === "order" && r.method === "upi"))}</b>Online UPI</div><div class="stat"><b>${fmt(by(r => r.kind === "membership"))}</b>Membership (wallet top-up)</div></div>
+    ${data.unpaid_delivered.length ? `<div class="card" style="border-color:#E8B4A0"><b>⚠️ Deliver ho gaye, paisa nahi aaya</b>${data.unpaid_delivered.map(u => `<div class="row" style="margin-top:6px"><span>#${u.id} · ${esc(u.name)} · ${fmt(u.total)}${u.rider ? " · 🛵 " + esc((RIDERS.find(r => r.email === u.rider) || {}).name || u.rider) : ""}</span><button class="btn s g" onclick="markPaid(${u.id}).then(payments)">Paisa mil gaya</button></div>`).join("")}</div>` : ""}
+    <h3 class="sec">Payment history</h3>${rows.length ? `<div class="tbl"><table><thead><tr><th>Kab</th><th>Kya</th><th>Kisse</th><th>Tareeka</th><th>Rakam</th></tr></thead><tbody>${rows.map(r => `<tr><td>${dt(r.at)}</td><td>${r.kind === "order" ? "Order #" + r.ref : "Membership"}</td><td>${esc(r.who || "")}</td><td>${r.method === "cod" ? "Delivery par" : "UPI"}${r.note ? " · " + esc(r.note) : ""}</td><td><b>${fmt(r.amount)}</b></td></tr>`).join("")}</tbody></table></div>` : `<p class="sub">Is samay mein koi payment nahi.</p>`}
+    <p class="sub">Wallet se hue orders yahan dobara nahi gine jaate, kyunki unka paisa membership ke time aa chuka hota hai.</p>`;
+}
+async function assign(id, em) { const { error } = await sb.rpc("admin_assign_rider", { p_id: id, p_email: em || null }); if (error) alert(/CONFIRM_FIRST/.test(error.message) ? "Pehle order confirm karo" : error.message); orders(); }
 async function riders() {
   await loadRiders();
   $("#body").innerHTML = `<div class="card"><b>Naya delivery boy jodo</b><p class="sub">Jis email se wo rider panel (/rider.html) mein login karega. Customer ka number use sirf open order par dikhega, delivery ke baad chhup jayega.</p>
@@ -116,7 +195,7 @@ async function complaints() {
 }
 async function resolveC(id) { const { error } = await sb.rpc("admin_resolve_complaint", { p_id: id }); if (error) alert(error.message); complaints(); }
 async function setStatus(id, s) { if (s === "cancelled" && !confirm("Order cancel karein? Wallet order ho to paisa wapas jayega.")) return orders(); const { error } = await sb.rpc("admin_set_order_status", { p_id: id, p_status: s }); if (error) alert(error.message); orders(); }
-async function markPaid(id) { if (!confirm("Payment mil gaya? Paid mark karein?")) return; const { error } = await sb.rpc("admin_mark_paid", { p_id: id }); if (error) alert(error.message); orders(); }
+async function markPaid(id) { if (!confirm("Payment mil gaya? Paid mark karein?")) return; const { error } = await sb.rpc("admin_mark_paid", { p_id: id }); if (error) alert(error.message); if (tab === "orders") orders(); }
 async function waive(id) { if (!confirm("Delivery fee ₹30 hata dein?")) return; const { error } = await sb.rpc("admin_waive_fee", { p_id: id }); if (error) alert(error.message); orders(); }
 
 async function members() {

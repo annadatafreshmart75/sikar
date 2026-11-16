@@ -1,0 +1,3 @@
+-- Applied on 2026-11-16: paid_at + trigger, admin_assign_rider needs confirmed order,
+-- admin_dashboard, admin_customers, admin_customer, admin_payments (wallet orders excluded from money received).
+-- Source of truth: Supabase migration "admin_v2_dashboard_customers_payments".

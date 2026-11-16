@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Annadata">
 <link rel="preload" href="assets/fonts/mukta-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/fraunces-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -57,6 +57,7 @@
 <div class="msearch"><label class="search"><svg class="i"><use href="#search"/></svg><span class="sr" data-t="searchLabel"></span><input type="search" class="q-in" data-ph="searchPh" autocomplete="off"></label></div>
 </header>
 
+<div class="ibar" id="ibar" hidden><img src="assets/icon-192.png" alt="" width="40" height="40"><div><b data-t="ibTitle"></b><small data-t="ibSub"></small></div><button class="btn btn-g" type="button" id="ibBtn" data-t="ibBtn"></button></div>
 <main id="top">
 <section class="hero"><div class="wrap">
   <div>
@@ -178,11 +179,12 @@
   </div>
 </section>
 
+<div class="sheet" id="instSheet" role="dialog" aria-modal="true" aria-labelledby="instTitle"><button class="x" type="button" data-close aria-label="Close"><svg class="i"><use href="#x"/></svg></button><h4 id="instTitle" data-t="ihTitle"></h4><p class="sub" data-t="ihSub"></p><ol class="isteps" id="instSteps"></ol></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="assets/supabase.js"></script>
-<script src="config.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="config.js?v=4"></script>
+<script src="app.js?v=4"></script>
 <script>if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}</script>
 </body>
 </html>

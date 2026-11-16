@@ -629,7 +629,7 @@ document.addEventListener("click", e => {
     case "accRetry": return loadAccount(true);
     case "memSubmit": return submitMembership();
     case "memBack": S.memPlan = null; S.accTab = "wallet"; return renderAccount();
-    case "installBtn": return doInstall();
+    case "installBtn": case "ibBtn": return doInstall();
   }
 });
 $("#ov").addEventListener("click", () => closeLayer());
@@ -661,9 +661,28 @@ addEventListener("storage", e => { if (e.key === "af_cart") { S.cart = store.get
 
 /* ---------------- PWA install ---------------- */
 let deferredPrompt = null;
-addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; $("#installBtn").classList.add("show"); });
-addEventListener("appinstalled", () => { $("#installBtn").classList.remove("show"); toast(t("installed")); });
-async function doInstall() { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice.catch(() => {}); deferredPrompt = null; $("#installBtn").classList.remove("show"); }
+const isInstalled = () => matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: minimal-ui)").matches || navigator.standalone === true || store.get("af_installed", false);
+function updateInstallUI() {
+  const show = !isInstalled();
+  $("#ibar").hidden = !show;
+}
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; updateInstallUI(); });
+addEventListener("appinstalled", () => { store.set("af_installed", true); deferredPrompt = null; updateInstallUI(); toast(t("installed")); });
+async function doInstall() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const r = await deferredPrompt.userChoice.catch(() => null);
+    deferredPrompt = null;
+    if (r && r.outcome === "accepted") { store.set("af_installed", true); updateInstallUI(); }
+    return;
+  }
+  const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const inApp = /Instagram|FBAN|FBAV|wv\)|WhatsApp/i.test(ua);
+  const steps = inApp ? t("ihInApp") : ios ? t("ihIos") : /Android/i.test(ua) ? t("ihAndroid") : t("ihDesktop");
+  $("#instSteps").innerHTML = steps.split("|").map(x => `<li>${x}</li>`).join("");
+  openLayer($("#instSheet"));
+}
+matchMedia("(display-mode: standalone)").addEventListener?.("change", updateInstallUI);
 
 /* ---------------- boot ---------------- */
 function readAuthErrorFromUrl() {
@@ -674,6 +693,7 @@ function readAuthErrorFromUrl() {
 async function boot() {
   S.loginEmail = store.get("af_login_email", "");
   applyLang();
+  updateInstallUI();
   readAuthErrorFromUrl();
   loadProducts();
   if (!sb) return;

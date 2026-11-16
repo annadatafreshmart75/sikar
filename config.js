@@ -65,8 +65,13 @@ window.FAQ = [
 
 window.T = {
  en:{
-  topFree:"Free delivery on ₹499+", topMin:"Minimum order ₹299", topSlots:"Slots 6–8 AM & 6–8 PM", city:"Delivering across Sikar",
-  searchLabel:"Search vegetables", searchPh:'Search "zucchini"', install:"Install app",
+  topFree:"Free delivery on ₹499+", topMin:"Minimum order ₹299", topSlots:"Slots 6–8 AM & 6–8 PM", city:"Delivery across Sikar",
+  searchLabel:"Search vegetables", searchPh:'Search "zucchini"', install:"Install app", ibTitle:"Get the Annadata app", ibSub:"Order in 1 tap from your home screen. Free, no Play Store needed.", ibBtn:"Install",
+  ihTitle:"Add Annadata to your home screen", ihSub:"Takes 10 seconds. The app icon will appear on your phone's first screen.",
+  ihAndroid:"Tap the <b>⋮</b> menu at the top-right of Chrome|Tap <b>Add to Home screen</b> or <b>Install app</b>|Tap <b>Install</b> / <b>Add</b>. Done!",
+  ihIos:"Open this page in <b>Safari</b>|Tap the <b>Share</b> button (square with arrow ↑) at the bottom|Scroll and tap <b>Add to Home Screen</b>, then <b>Add</b>",
+  ihInApp:"You opened this inside another app (Instagram / WhatsApp)|Tap the <b>⋮</b> or <b>…</b> menu and choose <b>Open in Chrome</b> (or Safari on iPhone)|Then tap <b>Install</b> on the green-gold bar at the top",
+  ihDesktop:"Click the <b>install icon</b> at the right end of the address bar|Or open the browser menu and choose <b>Install Annadata</b>|Click <b>Install</b>",
   heroTitle:"Picked at sunrise in Piprali. <em>On your table by evening.</em>",
   heroLead:"Chemical-free vegetables from Sitaram Khichar's farm, grown with his own organic khaad since 2010 and delivered across Sikar.",
   heroShop:"Shop today's harvest", heroFarmer:"Meet the farmer",
@@ -78,7 +83,7 @@ window.T = {
   noteFarm:"<b>Harvested this morning</b> at Piprali farm. Order by 4 PM for today's 6–8 PM slot.",
   ourFarm:"Our farm", off:"OFF", add:"ADD", options:"options", soldOut:"Sold out", noResults:"No vegetables match your search.", items:"items", item:"item",
   slotToday:"Today 6–8 PM", slotMorning:"Tomorrow 6–8 AM", slotTomEve:"Tomorrow 6–8 PM",
-  nextToday:"Delivery today, 6–8 PM", nextTomorrow:"Delivery tomorrow, 6–8 AM",
+  nextToday:"Today, 6–8 PM", nextTomorrow:"Tomorrow, 6–8 AM",
   chooseQty:"Choose quantity", kitNote:"Free zucchini recipe kit with every zucchini order", bestValue:"Best value",
   memTitle:"Annadata Wallet: pay once, get extra every month", memText:"Top up once and we add bonus credit. Every order is paid from your balance in one tap.",
   p1s:"Saathi · pay ₹5,000", p2s:"Parivar · pay ₹10,000", memBtn:"Start membership",
@@ -111,7 +116,12 @@ window.T = {
  },
  hi:{
   topFree:"₹499+ पर फ्री डिलीवरी", topMin:"न्यूनतम ऑर्डर ₹299", topSlots:"स्लॉट सुबह 6–8 और शाम 6–8", city:"पूरे सीकर में डिलीवरी",
-  searchLabel:"सब्ज़ी खोजें", searchPh:'"ज़ुकिनी" खोजें', install:"ऐप इंस्टॉल करें",
+  searchLabel:"सब्ज़ी खोजें", searchPh:'"ज़ुकिनी" खोजें', install:"ऐप इंस्टॉल करें", ibTitle:"अन्नदाता ऐप लें", ibSub:"होम स्क्रीन से 1 टैप में ऑर्डर। फ्री, Play Store की ज़रूरत नहीं।", ibBtn:"इंस्टॉल",
+  ihTitle:"अन्नदाता को होम स्क्रीन पर लगाएँ", ihSub:"10 सेकंड लगेंगे। ऐप का आइकन फ़ोन की पहली स्क्रीन पर आ जाएगा।",
+  ihAndroid:"Chrome में ऊपर दाईं ओर <b>⋮</b> मेन्यू दबाएँ|<b>Add to Home screen</b> या <b>Install app</b> दबाएँ|<b>Install</b> / <b>Add</b> दबाएँ। हो गया!",
+  ihIos:"यह पेज <b>Safari</b> में खोलें|नीचे <b>Share</b> बटन (↑ वाला डिब्बा) दबाएँ|नीचे जाकर <b>Add to Home Screen</b>, फिर <b>Add</b> दबाएँ",
+  ihInApp:"आपने यह पेज किसी और ऐप (Instagram / WhatsApp) के अंदर खोला है|<b>⋮</b> या <b>…</b> मेन्यू से <b>Open in Chrome</b> चुनें (iPhone पर Safari)|फिर ऊपर की पट्टी पर <b>इंस्टॉल</b> दबाएँ",
+  ihDesktop:"एड्रेस बार के दाईं ओर <b>install आइकन</b> दबाएँ|या ब्राउज़र मेन्यू में <b>Install Annadata</b> चुनें|<b>Install</b> दबाएँ",
   heroTitle:"सुबह पिपराली के खेत से तोड़ी। <em>शाम तक आपकी थाली में।</em>",
   heroLead:"सीताराम खीचड़ के खेत की केमिकल-फ्री सब्ज़ियाँ, 2010 से उनकी अपनी जैविक खाद से उगाई हुई, पूरे सीकर में डिलीवरी।",
   heroShop:"आज की ताज़ी सब्ज़ी देखें", heroFarmer:"किसान से मिलें",

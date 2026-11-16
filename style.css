@@ -413,3 +413,13 @@ body.has-cart .wa{bottom:110px}
 .trk .st.now i{border-color:var(--leaf);background:#fff;box-shadow:0 0 0 4px var(--leaf-soft)}
 .trk .st.done,.trk .st.now{color:var(--ink);font-weight:700}
 .msgline{font-size:13.5px;background:var(--leaf-soft);color:var(--forest);padding:8px 10px;border-radius:10px;margin-top:8px}
+
+/* install bar */
+.ibar{display:flex;align-items:center;gap:12px;background:var(--gold-soft);border-bottom:1px solid #E8D6AE;padding:10px 16px;max-width:none}
+.ibar img{width:40px;height:40px;border-radius:10px;flex:none}
+.ibar div{flex:1;min-width:0;line-height:1.25}.ibar b{display:block;font-size:15px;color:var(--forest)}.ibar small{font-size:13px;color:var(--ink-2)}
+.ibar .btn{min-height:40px;padding:0 16px;font-size:14.5px;white-space:nowrap}
+@media (min-width:901px){.ibar{justify-content:center}.ibar div{flex:0 1 auto}}
+.isteps{padding-left:22px;margin:6px 0 4px;font-size:16px;line-height:1.5}
+.isteps li{margin:10px 0}.isteps b{color:var(--forest)}
+@media (max-width:900px){.hdr .del{flex:1;min-width:0}.hdr .del b{font-size:14px;overflow:hidden;text-overflow:ellipsis}.hdr .del small{overflow:hidden;text-overflow:ellipsis}}

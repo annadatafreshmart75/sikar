@@ -630,6 +630,7 @@ document.addEventListener("click", e => {
     case "memSubmit": return submitMembership();
     case "memBack": S.memPlan = null; S.accTab = "wallet"; return renderAccount();
     case "installBtn": case "ibBtn": return doInstall();
+    case "instNowBtn": return promptInstall();
   }
 });
 $("#ov").addEventListener("click", () => closeLayer());
@@ -660,26 +661,31 @@ addEventListener("popstate", () => { if (location.hash !== "#story") closeStory(
 addEventListener("storage", e => { if (e.key === "af_cart") { S.cart = store.get("af_cart", {}); renderGrid(); renderCartUI(); } });
 
 /* ---------------- PWA install ---------------- */
-let deferredPrompt = null;
 const isInstalled = () => matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: minimal-ui)").matches || navigator.standalone === true || store.get("af_installed", false);
-function updateInstallUI() {
-  const show = !isInstalled();
-  $("#ibar").hidden = !show;
+function updateInstallUI() { $("#ibar").hidden = isInstalled(); }
+function canPrompt() { return !!window.__bip; }
+function renderInstNow() {
+  const box = $("#instNow"); if (!box) return;
+  box.innerHTML = canPrompt() ? `<button class="btn btn-g btn-block" type="button" id="instNowBtn" style="margin:6px 0 10px">📲 ${t("ihNow")}</button><p class="sub">${t("ihOr")}</p>` : "";
 }
-addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; updateInstallUI(); });
-addEventListener("appinstalled", () => { store.set("af_installed", true); deferredPrompt = null; updateInstallUI(); toast(t("installed")); });
+document.addEventListener("af-can-install", () => { updateInstallUI(); renderInstNow(); });
+addEventListener("appinstalled", () => { store.set("af_installed", true); window.__bip = null; updateInstallUI(); if ($("#instSheet").classList.contains("open")) closeLayer($("#instSheet")); toast(t("installed")); });
+async function promptInstall() {
+  const ev = window.__bip; if (!ev) return false;
+  window.__bip = null;
+  ev.prompt();
+  const r = await ev.userChoice.catch(() => null);
+  if (r && r.outcome === "accepted") { store.set("af_installed", true); updateInstallUI(); if ($("#instSheet").classList.contains("open")) closeLayer($("#instSheet")); }
+  renderInstNow();
+  return true;
+}
 async function doInstall() {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    const r = await deferredPrompt.userChoice.catch(() => null);
-    deferredPrompt = null;
-    if (r && r.outcome === "accepted") { store.set("af_installed", true); updateInstallUI(); }
-    return;
-  }
+  if (await promptInstall()) return;
   const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const inApp = /Instagram|FBAN|FBAV|wv\)|WhatsApp/i.test(ua);
   const steps = inApp ? t("ihInApp") : ios ? t("ihIos") : /Android/i.test(ua) ? t("ihAndroid") : t("ihDesktop");
   $("#instSteps").innerHTML = steps.split("|").map(x => `<li>${x}</li>`).join("");
+  renderInstNow();
   openLayer($("#instSheet"));
 }
 matchMedia("(display-mode: standalone)").addEventListener?.("change", updateInstallUI);

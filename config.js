@@ -67,8 +67,8 @@ window.T = {
  en:{
   topFree:"Free delivery on ₹499+", topMin:"Minimum order ₹299", topSlots:"Slots 6–8 AM & 6–8 PM", city:"Delivery across Sikar",
   searchLabel:"Search vegetables", searchPh:'Search "zucchini"', install:"Install app", ibTitle:"Get the Annadata app", ibSub:"Order in 1 tap from your home screen. Free, no Play Store needed.", ibBtn:"Install",
-  ihTitle:"Add Annadata to your home screen", ihSub:"Takes 10 seconds. The app icon will appear on your phone's first screen.",
-  ihAndroid:"Tap the <b>⋮</b> menu at the top-right of Chrome|Tap <b>Add to Home screen</b> or <b>Install app</b>|Tap <b>Install</b> / <b>Add</b>. Done!",
+  ihNow:"Install now", ihOr:"Or do it yourself in 3 steps:", ihTitle:"Add Annadata to your home screen", ihSub:"Takes 10 seconds. The app icon will appear on your phone's first screen.",
+  ihAndroid:"Tap the <b>⋮</b> (three dots) at the top-right of Chrome|In the list, tap <b>Add to Home screen</b> (or <b>Install app</b>)|A small box opens: tap <b>Install</b>. The Annadata icon is now on your home screen!",
   ihIos:"Open this page in <b>Safari</b>|Tap the <b>Share</b> button (square with arrow ↑) at the bottom|Scroll and tap <b>Add to Home Screen</b>, then <b>Add</b>",
   ihInApp:"You opened this inside another app (Instagram / WhatsApp)|Tap the <b>⋮</b> or <b>…</b> menu and choose <b>Open in Chrome</b> (or Safari on iPhone)|Then tap <b>Install</b> on the green-gold bar at the top",
   ihDesktop:"Click the <b>install icon</b> at the right end of the address bar|Or open the browser menu and choose <b>Install Annadata</b>|Click <b>Install</b>",
@@ -117,8 +117,8 @@ window.T = {
  hi:{
   topFree:"₹499+ पर फ्री डिलीवरी", topMin:"न्यूनतम ऑर्डर ₹299", topSlots:"स्लॉट सुबह 6–8 और शाम 6–8", city:"पूरे सीकर में डिलीवरी",
   searchLabel:"सब्ज़ी खोजें", searchPh:'"ज़ुकिनी" खोजें', install:"ऐप इंस्टॉल करें", ibTitle:"अन्नदाता ऐप लें", ibSub:"होम स्क्रीन से 1 टैप में ऑर्डर। फ्री, Play Store की ज़रूरत नहीं।", ibBtn:"इंस्टॉल",
-  ihTitle:"अन्नदाता को होम स्क्रीन पर लगाएँ", ihSub:"10 सेकंड लगेंगे। ऐप का आइकन फ़ोन की पहली स्क्रीन पर आ जाएगा।",
-  ihAndroid:"Chrome में ऊपर दाईं ओर <b>⋮</b> मेन्यू दबाएँ|<b>Add to Home screen</b> या <b>Install app</b> दबाएँ|<b>Install</b> / <b>Add</b> दबाएँ। हो गया!",
+  ihNow:"अभी इंस्टॉल करें", ihOr:"या खुद 3 स्टेप में करें:", ihTitle:"अन्नदाता को होम स्क्रीन पर लगाएँ", ihSub:"10 सेकंड लगेंगे। ऐप का आइकन फ़ोन की पहली स्क्रीन पर आ जाएगा।",
+  ihAndroid:"Chrome में ऊपर दाईं ओर <b>⋮</b> (तीन बिंदु) दबाएँ|लिस्ट में <b>Add to Home screen</b> (या <b>Install app</b>) दबाएँ|छोटा बॉक्स खुलेगा: <b>Install</b> दबाएँ। अन्नदाता का आइकन होम स्क्रीन पर आ जाएगा!",
   ihIos:"यह पेज <b>Safari</b> में खोलें|नीचे <b>Share</b> बटन (↑ वाला डिब्बा) दबाएँ|नीचे जाकर <b>Add to Home Screen</b>, फिर <b>Add</b> दबाएँ",
   ihInApp:"आपने यह पेज किसी और ऐप (Instagram / WhatsApp) के अंदर खोला है|<b>⋮</b> या <b>…</b> मेन्यू से <b>Open in Chrome</b> चुनें (iPhone पर Safari)|फिर ऊपर की पट्टी पर <b>इंस्टॉल</b> दबाएँ",
   ihDesktop:"एड्रेस बार के दाईं ओर <b>install आइकन</b> दबाएँ|या ब्राउज़र मेन्यू में <b>Install Annadata</b> चुनें|<b>Install</b> दबाएँ",

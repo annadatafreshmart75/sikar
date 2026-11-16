@@ -1,5 +1,5 @@
-const CACHE = "annadata-v6";
-const CORE = ["./", "./index.html", "./style.css?v=5", "./config.js?v=5", "./app.js?v=5", "./assets/supabase.js", "./manifest.webmanifest", "./assets/logo-h.png", "./assets/icon-192.png", "./assets/fonts/mukta-latin-400-normal.woff2", "./assets/fonts/fraunces-latin-600-normal.woff2"];
+const CACHE = "annadata-v7";
+const CORE = ["./", "./index.html", "./style.css?v=6", "./config.js?v=6", "./app.js?v=6", "./assets/supabase.js", "./manifest.webmanifest", "./assets/logo-h.png", "./assets/icon-192.png", "./assets/fonts/mukta-latin-400-normal.woff2", "./assets/fonts/fraunces-latin-600-normal.woff2"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {
@@ -9,7 +9,7 @@ self.addEventListener("fetch", e => {
   if (url.origin !== location.origin) return;            // never cache Supabase, Google or payments
   if (url.pathname.endsWith(".mp4") || url.pathname.endsWith("admin.html") || url.pathname.endsWith("rider.html")) return;
   if (req.mode === "navigate" || /\.(js|css|html|webmanifest)$/.test(url.pathname)) {   // network first: always fresh code & prices
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; })
+    e.respondWith(fetch(req, { cache: "no-cache" }).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; })
       .catch(() => caches.match(req).then(h => h || caches.match("./index.html"))));
     return;
   }

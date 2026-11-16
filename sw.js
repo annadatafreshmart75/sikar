@@ -1,4 +1,4 @@
-const CACHE = "annadata-v5";
+const CACHE = "annadata-v6";
 const CORE = ["./", "./index.html", "./style.css?v=5", "./config.js?v=5", "./app.js?v=5", "./assets/supabase.js", "./manifest.webmanifest", "./assets/logo-h.png", "./assets/icon-192.png", "./assets/fonts/mukta-latin-400-normal.woff2", "./assets/fonts/fraunces-latin-600-normal.woff2"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });

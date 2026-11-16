@@ -44,6 +44,33 @@ try {
   });
 } catch (e) { console.warn("Supabase unavailable", e); }
 
+/* ---------------- anonymous visitor stats (no personal data) ---------------- */
+const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const VT = (() => {
+  let isNew = false, vid, sid;
+  try { vid = localStorage.getItem("af_vid"); if (!vid) { vid = rid(); isNew = true; localStorage.setItem("af_vid", vid); } } catch { vid = rid(); isNew = true; }
+  try { sid = sessionStorage.getItem("af_sid"); if (!sid) { sid = rid(); sessionStorage.setItem("af_sid", sid); } } catch { sid = rid(); }
+  return { vid, sid, isNew };
+})();
+function visitSource() {
+  const q = new URLSearchParams(location.search);
+  const s = (q.get("src") || q.get("utm_source") || "").toLowerCase();
+  if (s) return s.slice(0, 20);
+  if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "app";
+  const r = document.referrer.toLowerCase();
+  if (!r || r.includes(location.hostname)) return /instagram/i.test(navigator.userAgent) ? "instagram" : /FBAN|FBAV/.test(navigator.userAgent) ? "facebook" : "direct";
+  for (const k of ["instagram", "facebook", "whatsapp", "google", "youtube"]) if (r.includes(k)) return k;
+  if (r.includes("wa.me") || r.includes("l.wl.co")) return "whatsapp";
+  return "other";
+}
+function track(kind, item) {
+  if (!sb) return;
+  const device = /Mobi|Android|iPhone/i.test(navigator.userAgent) ? "mobile" : "desktop";
+  sb.rpc("track_event", { p_vid: VT.vid, p_sid: VT.sid, p_kind: kind, p_item: item || null,
+    p_src: kind === "visit" ? visitSource() : null, p_device: kind === "visit" ? device : null, p_new: kind === "visit" ? VT.isNew : null }).then(() => {}, () => {});
+  try { if (window.gtag && kind !== "visit") gtag("event", kind, item ? { item_name: item } : {}); } catch {}
+}
+
 async function withRetry(fn, tries = 3) {
   let last;
   for (let i = 0; i < tries; i++) {
@@ -196,7 +223,7 @@ function setQty(key, q) {
   renderCartUI();
   if ($("#optSheet").classList.contains("open")) renderSheet(info.p.id);
   if ($("#cartDrawer").classList.contains("open") && S.view === "cart") renderDrawer();
-  if (!before && q) toast(t("added"));
+  if (!before && q) { toast(t("added")); track("add_cart", info.p.name_en); }
 }
 function totals() {
   let sub = 0, mrp = 0, count = 0, kit = false;
@@ -222,7 +249,7 @@ function renderCartUI() {
 
 /* ---------------- option sheet ---------------- */
 let sheetPid = null;
-function openSheet(pid) { sheetPid = pid; renderSheet(pid); openLayer($("#optSheet")); }
+function openSheet(pid) { sheetPid = pid; renderSheet(pid); openLayer($("#optSheet")); const pp = S.products?.find?.(x => x.id === pid); track("view_item", pp ? pp.name_en : pid); }
 function renderSheet(pid) {
   const p = S.products.find(x => x.id === pid); if (!p) return;
   $("#optTitle").textContent = pname(p);
@@ -337,6 +364,7 @@ async function placeOrder() {
     S.cart = {}; saveCart();
     if (S.profile) { S.profile.balance = data.balance ?? S.profile.balance; Object.assign(S.profile, { full_name: name, phone, address, landmark }); }
     S.accData = null;
+    track("order");
     S.view = "done"; renderDrawer(); renderGrid(); renderCartUI();
   } catch (e) {
     const m = String(e?.message || "");
@@ -619,7 +647,7 @@ document.addEventListener("click", e => {
   switch (el.id) {
     case "accBtn": return openAccount("orders");
     case "cartBack": S.view = "cart"; return renderDrawer();
-    case "toCheckout": if (!S.session) { S.afterLogin = "checkout"; return openLogin(); } S.view = "checkout"; return renderDrawer();
+    case "toCheckout": if (!S.session) { S.afterLogin = "checkout"; return openLogin(); } S.view = "checkout"; track("checkout"); return renderDrawer();
     case "placeBtn": return placeOrder();
     case "upiRefBtn": return submitUpiRef();
     case "gLogin": return googleLogin();
@@ -703,6 +731,7 @@ async function boot() {
   readAuthErrorFromUrl();
   loadProducts();
   if (!sb) return;
+  track("visit");
   sb.auth.onAuthStateChange((event, session) => {
     // defer: never call Supabase inside this callback directly
     setTimeout(() => {

@@ -40,6 +40,9 @@ input,select,textarea{font:inherit;padding:8px 10px;border:1.5px solid var(--lin
 a{color:var(--deep)}
 .stat{font:inherit;text-align:left;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px}
 .stat:hover{border-color:var(--deep)}.stat.hot{background:#FFF4E2;border-color:#E8C98A}.stat.money b{color:var(--leaf)}
+.hbar{display:grid;grid-template-columns:minmax(90px,150px) 1fr 44px;gap:8px;align-items:center;margin:6px 0;font-size:15px}.hbar i{display:block;height:12px;border-radius:6px;background:var(--leaf)}.hbar span:last-child{text-align:right;font-weight:700}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.days{display:flex;align-items:flex-end;gap:6px;height:120px;padding-top:6px}.days div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:12px;color:var(--muted)}.days i{display:block;width:100%;max-width:34px;background:var(--deep);border-radius:5px 5px 0 0;min-height:2px}.days b{font-size:12px;color:var(--deep)}
 .sec{margin:18px 0 8px;font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .acts{margin-top:10px;justify-content:flex-start;gap:6px}
 .tbl{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
@@ -63,7 +66,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const fmt = n => "₹" + Number(n || 0).toLocaleString("en-IN");
 const dt = s => new Date(s).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const ST = { awaiting_payment: "UPI payment check", placed: "Naya: confirm karo", confirmed: "Confirmed", out_for_delivery: "Raste mein", delivered: "Delivered", cancelled: "Cancelled" };
-let tab = "home", filter = "new", email = "", CUST_Q = "", PAY_DAYS = 30;
+let tab = "home", filter = "new", email = "", CUST_Q = "", PAY_DAYS = 30, VIS_DAYS = 7;
 
 async function start() {
   const { data: { session } } = await sb.auth.getSession();
@@ -84,8 +87,8 @@ function google() { sb.auth.signInWithOAuth({ provider: "google", options: { red
 async function logout() { await sb.auth.signOut({ scope: "local" }); location.reload(); }
 
 function render() {
-  app.innerHTML = `<div class="tabs" role="tablist">${[["home", "🏠 Dashboard"], ["orders", "📦 Orders"], ["customers", "👥 Customers"], ["payments", "💰 Payments"], ["riders", "🛵 Delivery boys"], ["complaints", "⚠️ Shikayat"], ["members", "💳 Membership"], ["products", "🥬 Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
-  ({ home, orders, customers, payments, riders, complaints, members, products })[tab]();
+  app.innerHTML = `<div class="tabs" role="tablist">${[["home", "🏠 Dashboard"], ["orders", "📦 Orders"], ["customers", "👥 Customers"], ["payments", "💰 Payments"], ["visitors", "📊 Visitors"], ["riders", "🛵 Delivery boys"], ["complaints", "⚠️ Shikayat"], ["members", "💳 Membership"], ["products", "🥬 Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
+  ({ home, orders, customers, payments, visitors, riders, complaints, members, products })[tab]();
 }
 async function names(ids) { const { data } = await sb.from("profiles").select("id,full_name,phone,email").in("id", [...new Set(ids)]); return Object.fromEntries((data || []).map(p => [p.id, p])); }
 
@@ -174,6 +177,25 @@ async function payments() {
     ${data.unpaid_delivered.length ? `<div class="card" style="border-color:#E8B4A0"><b>⚠️ Deliver ho gaye, paisa nahi aaya</b>${data.unpaid_delivered.map(u => `<div class="row" style="margin-top:6px"><span>#${u.id} · ${esc(u.name)} · ${fmt(u.total)}${u.rider ? " · 🛵 " + esc((RIDERS.find(r => r.email === u.rider) || {}).name || u.rider) : ""}</span><button class="btn s g" onclick="markPaid(${u.id}).then(payments)">Paisa mil gaya</button></div>`).join("")}</div>` : ""}
     <h3 class="sec">Payment history</h3>${rows.length ? `<div class="tbl"><table><thead><tr><th>Kab</th><th>Kya</th><th>Kisse</th><th>Tareeka</th><th>Rakam</th></tr></thead><tbody>${rows.map(r => `<tr><td>${dt(r.at)}</td><td>${r.kind === "order" ? "Order #" + r.ref : "Membership"}</td><td>${esc(r.who || "")}</td><td>${r.method === "cod" ? "Delivery par" : "UPI"}${r.note ? " · " + esc(r.note) : ""}</td><td><b>${fmt(r.amount)}</b></td></tr>`).join("")}</tbody></table></div>` : `<p class="sub">Is samay mein koi payment nahi.</p>`}
     <p class="sub">Wallet se hue orders yahan dobara nahi gine jaate, kyunki unka paisa membership ke time aa chuka hota hai.</p>`;
+}
+async function visitors() {
+  const { data, error } = await sb.rpc("admin_visitors", { p_days: VIS_DAYS });
+  if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
+  const d = data, f = (n, l) => `<button class="btn s ${VIS_DAYS === n ? "p" : ""}" onclick="VIS_DAYS=${n};visitors()">${l}</button>`;
+  const SRC = { qr: "📷 QR scan", instagram: "📸 Instagram", facebook: "👍 Facebook", whatsapp: "💬 WhatsApp", google: "🔎 Google", youtube: "▶️ YouTube", app: "📲 Installed app", direct: "🔗 Seedha link", other: "🌐 Dusri website" };
+  const bars = (list, lab) => { const m = Math.max(1, ...list.map(x => x.n)); return list.length ? list.map(x => `<div class="hbar"><span>${esc(lab ? (lab[x.k] || x.k) : x.k)}</span><i style="width:${Math.max(3, x.n * 100 / m)}%"></i><span>${x.n}</span></div>`).join("") : `<p class="sub">Abhi data nahi.</p>`; };
+  const pc = (a, b) => b ? Math.round(a * 100 / b) + "%" : "–";
+  const dm = Math.max(1, ...d.daily.map(x => x.n));
+  $("#body").innerHTML = `<div class="filters">${f(1, "Aaj")}${f(7, "7 din")}${f(30, "30 din")}${f(90, "90 din")}</div>
+    <div class="stats"><div class="stat"><b>${d.visitors}</b>Log aaye</div><div class="stat"><b>${d.new_visitors}</b>Naye log</div><div class="stat"><b>${d.returning}</b>Dobara aaye</div><div class="stat money"><b>${pc(d.order_sessions, d.sessions)}</b>Visit se order bane</div></div>
+    <div class="card"><b>Kitne log kahan tak pahunche</b>${bars([{ k: "Website khuli", n: d.sessions }, { k: "Cart mein daala", n: d.cart_sessions }, { k: "Checkout khola", n: d.checkout_sessions }, { k: "Order diya", n: d.order_sessions }])}
+      ${d.cart_sessions > d.order_sessions ? `<p class="sub">${d.cart_sessions - d.order_sessions} baar cart bhara par order nahi hua.</p>` : ""}</div>
+    <div class="two"><div class="card"><b>Log kahan se aaye</b>${bars(d.sources, SRC)}</div><div class="card"><b>Mobile ya computer</b>${bars(d.devices, { mobile: "📱 Mobile", desktop: "💻 Computer" })}</div></div>
+    <div class="two"><div class="card"><b>Sabse zyada dekhi gayi sabzi</b>${bars(d.viewed)}</div><div class="card"><b>Sabse zyada cart mein daali</b>${bars(d.carted)}</div></div>
+    ${VIS_DAYS > 1 && d.daily.length ? `<div class="card"><b>Roz kitne log aaye</b><div class="days">${d.daily.map(x => `<div><b>${x.n}</b><i style="height:${x.n * 90 / dm}%"></i>${esc(x.l)}</div>`).join("")}</div></div>` : ""}
+    <h3 class="sec">Gehraai se dekhna ho to</h3>
+    <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn g" href="https://clarity.microsoft.com/projects/view/zek0kznidj/dashboard" target="_blank" rel="noopener">🎥 Clarity: recording &amp; heatmap</a><a class="btn" href="https://analytics.google.com/" target="_blank" rel="noopener">📈 Google Analytics</a></div>
+    <p class="sub">Yahan kisi ka naam, number ya email save nahi hota, sirf ginti hoti hai. Ek browser ko ek visitor gina jata hai. Naye number 16 Nov 2026 se aane shuru hue hain.</p>`;
 }
 async function assign(id, em) { const { error } = await sb.rpc("admin_assign_rider", { p_id: id, p_email: em || null }); if (error) alert(/CONFIRM_FIRST/.test(error.message) ? "Pehle order confirm karo" : error.message); orders(); }
 async function riders() {

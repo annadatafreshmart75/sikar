@@ -402,3 +402,14 @@ body.has-cart .wa{bottom:110px}
   .mbar{left:auto;right:24px;bottom:24px;width:380px}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}.tl li{opacity:1;transform:none}}
+
+/* order tracker */
+.trk{display:grid;grid-template-columns:repeat(4,1fr);margin:12px 0 6px;position:relative}
+.trk::before{content:"";position:absolute;left:12.5%;right:12.5%;top:11px;height:3px;background:var(--line)}
+.trk .bar{position:absolute;left:12.5%;top:11px;height:3px;background:var(--leaf);transition:width .5s var(--ease)}
+.trk .st{text-align:center;position:relative;font-size:11.5px;color:var(--ink-3);line-height:1.2}
+.trk .st i{display:grid;place-items:center;width:24px;height:24px;margin:0 auto 5px;border-radius:99px;background:var(--paper);border:3px solid var(--line);font-style:normal;font-size:12px;color:#fff;font-weight:700}
+.trk .st.done i{background:var(--leaf);border-color:var(--leaf)}
+.trk .st.now i{border-color:var(--leaf);background:#fff;box-shadow:0 0 0 4px var(--leaf-soft)}
+.trk .st.done,.trk .st.now{color:var(--ink);font-weight:700}
+.msgline{font-size:13.5px;background:var(--leaf-soft);color:var(--forest);padding:8px 10px;border-radius:10px;margin-top:8px}

@@ -73,12 +73,15 @@ function google() { sb.auth.signInWithOAuth({ provider: "google", options: { red
 async function logout() { await sb.auth.signOut({ scope: "local" }); location.reload(); }
 
 function render() {
-  app.innerHTML = `<div class="tabs" role="tablist">${[["orders", "Orders"], ["members", "Membership"], ["products", "Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
-  ({ orders, members, products })[tab]();
+  app.innerHTML = `<div class="tabs" role="tablist">${[["orders", "Orders"], ["riders", "Delivery boys"], ["complaints", "Shikayat"], ["members", "Membership"], ["products", "Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
+  ({ orders, riders, complaints, members, products })[tab]();
 }
 async function names(ids) { const { data } = await sb.from("profiles").select("id,full_name,phone,email").in("id", [...new Set(ids)]); return Object.fromEntries((data || []).map(p => [p.id, p])); }
 
+let RIDERS = [];
+async function loadRiders() { const { data } = await sb.rpc("admin_riders"); RIDERS = data || []; return RIDERS; }
 async function orders() {
+  await loadRiders();
   let q = sb.from("orders").select("*").order("created_at", { ascending: false }).limit(200);
   if (filter === "open") q = q.in("status", ["awaiting_payment", "placed", "confirmed", "out_for_delivery"]);
   const { data, error } = await q; if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
@@ -91,8 +94,27 @@ async function orders() {
     <div class="sub">📍 ${esc(o.address)}${o.landmark ? ", " + esc(o.landmark) : ""}<br>🕒 ${esc(o.slot)} · ordered ${dt(o.created_at)}<br>
     📞 <a href="tel:+91${esc(o.phone)}">${esc(o.phone)}</a> · <a target="_blank" rel="noopener" href="https://wa.me/91${esc(o.phone)}?text=${encodeURIComponent("Namaste " + o.name + "! Annadata Fresh Mart: aapka order #" + o.id + " (" + fmt(o.total) + ") confirm hai. Delivery: " + o.slot)}">WhatsApp confirm bhejein</a><br>
     💰 ${o.pay_method === "cod" ? "Delivery par payment" : o.pay_method === "wallet" ? "Wallet se paid" : "UPI"} · Items ${fmt(o.subtotal)} + delivery ${fmt(o.delivery_fee)} · ${o.paid ? "<b style='color:var(--leaf)'>PAID</b>" : "<b>Not paid</b>"}${o.upi_ref ? " · UPI ref: <b>" + esc(o.upi_ref) + "</b>" : ""}</div>
-    <div class="row" style="margin-top:8px;justify-content:flex-start">${status(o)}${!o.paid ? ` <button class="btn s g" onclick="markPaid(${o.id})">Paid mark karo</button>` : ""}${o.delivery_fee > 0 && o.status !== "cancelled" ? ` <button class="btn s" onclick="waive(${o.id})">2 km ke andar: fee hatao</button>` : ""}</div></div>`).join("") : `<p class="sub">Koi order nahi.</p>`);
+    <div class="row" style="margin-top:8px;justify-content:flex-start">${status(o)} ${["delivered","cancelled"].includes(o.status) ? (o.rider_email ? `<span class="sub">🛵 ${esc((RIDERS.find(r=>r.email===o.rider_email)||{}).name||o.rider_email)}</span>` : "") : `<select onchange="assign(${o.id},this.value)"><option value="">🛵 Delivery boy chuno</option>${RIDERS.filter(r=>r.active).map(r=>`<option value="${esc(r.email)}" ${r.email===o.rider_email?"selected":""}>${esc(r.name)}</option>`).join("")}</select>`}${!o.paid ? ` <button class="btn s g" onclick="markPaid(${o.id})">Paid mark karo</button>` : ""}${o.delivery_fee > 0 && o.status !== "cancelled" ? ` <button class="btn s" onclick="waive(${o.id})">2 km ke andar: fee hatao</button>` : ""}</div></div>`).join("") : `<p class="sub">Koi order nahi.</p>`);
 }
+async function assign(id, em) { const { error } = await sb.rpc("admin_assign_rider", { p_id: id, p_email: em || null }); if (error) alert(error.message); orders(); }
+async function riders() {
+  await loadRiders();
+  $("#body").innerHTML = `<div class="card"><b>Naya delivery boy jodo</b><p class="sub">Jis email se wo rider panel (/rider.html) mein login karega. Customer ka number use sirf open order par dikhega, delivery ke baad chhup jayega.</p>
+    <div class="row" style="justify-content:flex-start;margin-top:8px"><input id="rn" placeholder="Naam"> <input id="re" type="email" placeholder="email"> <button class="btn s p" onclick="addRider()">Jodo</button></div><p id="rmsg" class="err"></p></div>` +
+  (RIDERS.length ? RIDERS.map(r => `<div class="card row"><span><b>${esc(r.name)}</b><br><span class="sub">${esc(r.email)}</span></span><span>${r.active ? "<span class='badge'>Active</span>" : "<span class='badge n'>Band</span>"} <button class="btn s ${r.active ? "r" : ""}" onclick="toggleRider('${esc(r.email)}','${esc(r.name)}',${!r.active})">${r.active ? "Band karo" : "Chalu karo"}</button></span></div>`).join("") : `<p class="sub">Abhi koi delivery boy nahi.</p>`) +
+  `<p class="sub">Rider panel link: <a href="rider.html" target="_blank">${location.origin}${location.pathname.replace("admin.html","rider.html")}</a></p>`;
+}
+async function addRider() { const { error } = await sb.rpc("admin_save_rider", { p_email: $("#re").value, p_name: $("#rn").value, p_active: true }); if (error) $("#rmsg").textContent = "Naam aur sahi email daalo"; else riders(); }
+async function toggleRider(em, nm, on) { const { error } = await sb.rpc("admin_save_rider", { p_email: em, p_name: nm, p_active: on }); if (error) alert(error.message); riders(); }
+async function complaints() {
+  const { data, error } = await sb.from("complaints").select("*").order("created_at", { ascending: false }).limit(100);
+  if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
+  const ppl = await names(data.map(c => c.user_id));
+  $("#body").innerHTML = data.length ? data.map(c => { const p = ppl[c.user_id] || {}; return `<div class="card"><div class="row"><span class="b">Order #${c.order_id} · ${esc(p.full_name || p.email || "")}</span><span class="badge ${c.status === "open" ? "w" : ""}">${c.status === "open" ? "Khuli" : "Hal ho gayi"}</span></div>
+    <p style="margin:8px 0">${esc(c.message)}</p><div class="sub">${dt(c.created_at)}${p.phone ? ` · <a href="tel:+91${esc(p.phone)}">${esc(p.phone)}</a>` : ""}</div>
+    ${c.status === "open" ? `<button class="btn s g" style="margin-top:8px" onclick="resolveC(${c.id})">Hal ho gaya</button>` : ""}</div>`; }).join("") : `<p class="sub">Koi shikayat nahi 🎉</p>`;
+}
+async function resolveC(id) { const { error } = await sb.rpc("admin_resolve_complaint", { p_id: id }); if (error) alert(error.message); complaints(); }
 async function setStatus(id, s) { if (s === "cancelled" && !confirm("Order cancel karein? Wallet order ho to paisa wapas jayega.")) return orders(); const { error } = await sb.rpc("admin_set_order_status", { p_id: id, p_status: s }); if (error) alert(error.message); orders(); }
 async function markPaid(id) { if (!confirm("Payment mil gaya? Paid mark karein?")) return; const { error } = await sb.rpc("admin_mark_paid", { p_id: id }); if (error) alert(error.message); orders(); }
 async function waive(id) { if (!confirm("Delivery fee ₹30 hata dein?")) return; const { error } = await sb.rpc("admin_waive_fee", { p_id: id }); if (error) alert(error.message); orders(); }

@@ -482,7 +482,7 @@ async function loadAccount(force) {
   try {
     if (S.profileErr) await loadProfile();
     const [o, w, m] = await Promise.all([
-      withRetry(() => sb.from("orders").select("id,items,total,pay_method,status,paid,slot,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(30), 2),
+      withRetry(() => sb.from("orders").select("id,items,total,pay_method,status,paid,slot,created_at,status_times").eq("user_id", uid).order("created_at", { ascending: false }).limit(30), 2),
       withRetry(() => sb.from("wallet_txns").select("amount,kind,note,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(30), 2),
       withRetry(() => sb.from("membership_requests").select("plan,amount,credit,status,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(10), 2)
     ]);
@@ -490,7 +490,7 @@ async function loadAccount(force) {
   } catch (e) { console.warn(e); S.accErr = true; }
   S.accLoading = false; renderAccount();
 }
-const chipCls = s => s === "delivered" || s === "confirmed" ? "ok" : s === "cancelled" ? "no" : "wait";
+const chipCls = s => s === "delivered" ? "ok" : s === "cancelled" ? "no" : "wait";
 const dt = s => new Date(s).toLocaleDateString(S.lang === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 function renderAccount() {
   const b = $("#accBody"); if (!b) return;
@@ -512,8 +512,7 @@ function renderAccount() {
   else if (S.accErr && !S.accData) body = `<div class="empty"><p>${t("loadErr")}</p><button class="btn btn-o" type="button" id="accRetry" style="margin-top:12px">${t("retry")}</button></div>`;
   else if (S.accTab === "orders") {
     const os = S.accData?.orders || [];
-    body = os.length ? os.map(o => `<div class="ord"><div class="t"><b>#${o.id} · <span class="num">${fmt(o.total)}</span></b><span class="chip ${chipCls(o.status)}">${t("st_" + o.status)}</span></div>
-      <p>${esc((o.items || []).map(i => `${i.name}${i.opt ? " (" + i.opt + ")" : ""} × ${i.qty}`).join(", "))}</p><p>${esc(o.slot || "")} · ${dt(o.created_at)}</p></div>`).join("")
+    body = os.length ? os.map(orderCard).join("")
       : `<div class="empty"><svg class="i"><use href="#bag"/></svg><p>${t("noOrders")}</p></div>`;
   } else {
     const tx = S.accData?.txns || [], rq = S.accData?.reqs || [];
@@ -521,6 +520,25 @@ function renderAccount() {
       (tx.length ? `<div class="box">${tx.map(x => `<div class="tx"><span>${esc(x.note || x.kind)}<br><small style="color:var(--ink-3)">${dt(x.created_at)}</small></span><span class="num ${x.amount > 0 ? "pos" : ""}">${x.amount > 0 ? "+" : "−"}${fmt(Math.abs(x.amount))}</span></div>`).join("")}</div>` : `<div class="empty"><svg class="i"><use href="#wallet"/></svg><p>${t("noTx")}</p></div>`);
   }
   b.innerHTML = head + body;
+}
+function orderCard(o) {
+  const steps = ["placed", "confirmed", "out_for_delivery", "delivered"];
+  const cur = o.status === "awaiting_payment" ? 0 : steps.indexOf(o.status);
+  const st = o.status_times || {};
+  const when = st.delivered ? t("deliveredOn", { d: dt(st.delivered) }) : t("deliveryOn", { s: o.slot || "" });
+  const track = o.status === "cancelled" ? "" : `<div class="trk"><span class="bar" style="width:${Math.max(0, cur) * 25.3}%"></span>${steps.map((k, i) => `<div class="st ${i < cur || (i === cur && k === "delivered") ? "done" : i === cur ? "now" : ""}"><i>${i < cur || (i === cur && k === "delivered") ? "✓" : ""}</i>${t("tr" + (i + 1))}</div>`).join("")}</div>`;
+  const msg = o.status !== "delivered" ? `<div class="msgline">${t("m_" + o.status)}</div>` : "";
+  const rep = S.reportFor === o.id ? `<div class="f" style="margin-top:10px"><textarea id="repText" rows="3" placeholder="${esc(t("reportPh"))}"></textarea><span class="err" id="repErr"></span></div><button class="btn btn-p btn-block" type="button" data-rep-send="${o.id}">${t("reportSend")}</button>`
+    : `<p style="margin-top:8px"><button class="linkbtn" type="button" data-rep="${o.id}" style="font-size:14px">${t("report")}</button></p>`;
+  return `<div class="ord"><div class="t"><b>#${o.id} · <span class="num">${fmt(o.total)}</span></b><span class="chip ${chipCls(o.status)}">${t("st_" + o.status)}${o.status === "delivered" ? " ✓" : ""}</span></div>
+    <p>${esc((o.items || []).map(i => `${i.name}${i.opt ? " (" + i.opt + ")" : ""} × ${i.qty}`).join(", "))}</p><p>${esc(when)}</p>${track}${msg}${rep}</div>`;
+}
+async function sendReport(id) {
+  const v = ($("#repText")?.value || "").trim();
+  if (v.length < 5) { $("#repErr").textContent = t("reportShort"); return; }
+  const { error } = await sb.rpc("submit_complaint", { p_order: id, p_message: v });
+  if (error) { $("#repErr").textContent = errText(error); return; }
+  S.reportFor = null; toast(t("reportOk")); renderAccount();
 }
 function memberHTML() {
   const amt = S.memPlan === "parivar" ? 10000 : 5000;
@@ -593,6 +611,8 @@ document.addEventListener("click", e => {
   if ("closeStory" in d) { closeStory(); if ("gotoShop" in d) setTimeout(() => $("#shop").scrollIntoView({ behavior: "smooth" }), 350); return; }
   if ("openMember" in d) { e.preventDefault(); return openAccount("wallet", true); }
   if ("openOrders" in d) { e.preventDefault(); if (layers.includes($("#cartDrawer"))) closeLayer($("#cartDrawer")); S.view = "cart"; return openAccount("orders"); }
+  if (d.rep) { S.reportFor = +d.rep; renderAccount(); setTimeout(() => $("#repText")?.focus(), 50); return; }
+  if (d.repSend) return sendReport(+d.repSend);
   if ("memStart" in d) { S.memPlan = "saathi"; return renderAccount(); }
   if ("login" in d) { closeLayer($("#accDrawer")); return openLogin(); }
   if (d.tab) { S.accTab = d.tab; S.memPlan = null; return renderAccount(); }

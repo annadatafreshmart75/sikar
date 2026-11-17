@@ -225,13 +225,19 @@ function setQty(key, q) {
   if ($("#cartDrawer").classList.contains("open") && S.view === "cart") renderDrawer();
   if (!before && q) { toast(t("added")); track("add_cart", info.p.name_en); }
 }
+const freeLeft = () => S.session ? (S.freeLeft ?? C.freeFirstOrders) : C.freeFirstOrders;
+function deliveryHint(sub) {
+  const fl = freeLeft(), left = C.freeDeliveryAbove - sub;
+  if (fl > 0) return S.session && fl === 1 ? t("freeFirst1") : t("freeFirst", { n: fl });
+  return left > 0 ? t("freeHint", { n: left }) : t("freeOk");
+}
 function totals() {
   let sub = 0, mrp = 0, count = 0, kit = false;
   for (const [key, q] of Object.entries(S.cart)) {
     const info = lineInfo(key); if (!info) continue;
     sub += info.o.price * q; mrp += (info.o.mrp || info.o.price) * q; count += q; kit = kit || !!info.p.kit;
   }
-  const fee = sub === 0 || sub >= C.freeDeliveryAbove ? 0 : C.deliveryCharge;
+  const fee = sub === 0 || freeLeft() > 0 || sub >= C.freeDeliveryAbove ? 0 : C.deliveryCharge;
   return { sub, mrp, fee, total: sub + fee, count, kit, lines: Object.keys(S.cart).length };
 }
 function renderCartUI() {
@@ -242,9 +248,8 @@ function renderCartUI() {
   bar.classList.toggle("show", show);
   document.body.classList.toggle("has-cart", tt.lines > 0);
   $("#mbarTotal").textContent = fmt(tt.sub);
-  const left = C.freeDeliveryAbove - tt.sub, short = C.minOrder - tt.sub;
-  $("#mbarSmall").textContent = `${tt.count} ${tt.count === 1 ? t("item") : t("items")} · ` + (short > 0 ? t("minWarn", { n: short }).replace(/\s*\(.*\)/, "") : left > 0 ? t("freeHint", { n: left }) : t("freeOk"));
-  $("#mbarProg").style.width = Math.min(100, Math.round(tt.sub * 100 / C.freeDeliveryAbove)) + "%";
+  $("#mbarSmall").textContent = `${tt.count} ${tt.count === 1 ? t("item") : t("items")} · ` + deliveryHint(tt.sub).replace("🎉 ", "");
+  $("#mbarProg").style.width = (freeLeft() > 0 ? 100 : Math.min(100, Math.round(tt.sub * 100 / C.freeDeliveryAbove))) + "%";
 }
 
 /* ---------------- option sheet ---------------- */
@@ -295,13 +300,12 @@ function renderDrawer() {
     foot.innerHTML = `<button class="btn btn-p btn-block" type="button" data-close data-goto-shop>${t("startShopping")}</button>`;
     return;
   }
-  const short = C.minOrder - tt.sub, left = C.freeDeliveryAbove - tt.sub;
   const bill = `<div class="box"><h5>${t("billDetails")}</h5>
     <div class="row"><span>${t("itemsTotal")}</span><span class="num">${tt.mrp > tt.sub ? `<s style="color:#8A938B">${fmt(tt.mrp)}</s> ` : ""}<b>${fmt(tt.sub)}</b></span></div>
     <div class="row"><span>${t("deliveryFee")}</span><b class="num">${tt.fee ? fmt(tt.fee) : `<span class="save">${t("free")}</span>`}</b></div>
     <div class="row tot"><span>${t("grandTotal")}</span><span class="num">${fmt(tt.total)}</span></div>
     ${tt.mrp > tt.sub ? `<div class="row"><span class="save">${t("youSave")}</span><span class="save num">${fmt(tt.mrp - tt.sub)}</span></div>` : ""}</div>`;
-  const hint = short > 0 ? `<div class="hint warn">${t("minWarn", { n: short })}</div>` : `<div class="hint"><svg class="i"><use href="#truck"/></svg>${left > 0 ? t("freeHint", { n: left }) : t("freeOk")}</div>`;
+  const hint = `<div class="hint"><svg class="i"><use href="#truck"/></svg>${deliveryHint(tt.sub)}</div>`;
   if (S.view === "cart") {
     $("#cartTitle").textContent = t("cart");
     body.innerHTML = hint + `<div class="box">` + Object.entries(S.cart).map(([key, q]) => {
@@ -309,7 +313,7 @@ function renderDrawer() {
       return `<div class="line"><img src="assets/${esc(p.image)}" alt=""><div><b>${esc(pname(p))}</b><small>${esc(oname(o))}</small><div class="lp num">${fmt(o.price * q)}${o.mrp > o.price ? `<s>${fmt(o.mrp * q)}</s>` : ""}</div></div>
         <div class="stp"><button type="button" data-dec="${key}" aria-label="−">−</button><span class="num">${q}</span><button type="button" data-inc="${key}" aria-label="+">+</button></div></div>`;
     }).join("") + `</div>` + (tt.kit ? `<div class="kit"><svg class="i"><use href="#gift"/></svg>${t("kitLine")}<em>${t("free")}</em></div>` : "") + bill;
-    foot.innerHTML = `<button class="btn btn-p btn-block" type="button" id="toCheckout" ${short > 0 ? "disabled" : ""}>${S.session ? t("proceed") : t("loginToOrder")} · <span class="num">${fmt(tt.total)}</span></button>
+    foot.innerHTML = `<button class="btn btn-p btn-block" type="button" id="toCheckout">${S.session ? t("proceed") : t("loginToOrder")} · <span class="num">${fmt(tt.total)}</span></button>
       <p class="msg"><a class="linkbtn" href="${wa(waOrderText())}" target="_blank" rel="noopener">${t("orWhatsApp")}</a></p>`;
     return;
   }
@@ -361,6 +365,7 @@ async function placeOrder() {
     if (error) throw error;
     ss.del("af_order_ref");
     S.lastOrder = { ...data, name, phone, address, slot, pay, payLabel: pay };
+    if (typeof data.free_left === "number") S.freeLeft = data.free_left;
     S.cart = {}; saveCart();
     if (S.profile) { S.profile.balance = data.balance ?? S.profile.balance; Object.assign(S.profile, { full_name: name, phone, address, landmark }); }
     S.accData = null;
@@ -369,8 +374,7 @@ async function placeOrder() {
   } catch (e) {
     const m = String(e?.message || "");
     let msg = errText(e);
-    if (m.includes("MIN_ORDER")) msg = t("minWarn", { n: C.minOrder - totals().sub });
-    else if (m.includes("LOW_BALANCE")) msg = t("payWalletLow", { n: (S.profile?.balance || 0) });
+    if (m.includes("LOW_BALANCE")) msg = t("payWalletLow", { n: (S.profile?.balance || 0) });
     else if (m.includes("ITEM_UNAVAILABLE")) { msg = t("errGeneric"); await loadProducts(); }
     else if (m.includes("BAD_DETAILS")) msg = t("errAddr");
     else if (m.includes("LOGIN_REQUIRED") || e?.code === "PGRST301") { S.afterLogin = "checkout"; openLogin(); }
@@ -475,11 +479,16 @@ async function loadProfile() {
   }
   $("#accDot").hidden = false;
 }
+async function loadFreeLeft() {
+  try { const { data } = await sb.rpc("my_delivery_info"); if (data && typeof data.free_left === "number") S.freeLeft = data.free_left; } catch {}
+  renderCartUI();
+}
 async function onSignedIn(session) {
   if (!session) return;
   const first = !S.session;
   S.session = session;
   await loadProfile();
+  await loadFreeLeft();
   S.loginStep = "start";
   if ($("#loginModal").classList.contains("open")) closeLayer($("#loginModal"));
   if (first) toast(t("welcome", { n: (S.profile?.full_name || session.user.email || "").split(" ")[0].split("@")[0] }));

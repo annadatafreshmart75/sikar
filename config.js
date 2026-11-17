@@ -5,9 +5,9 @@ window.CONFIG = {
   whatsapp: "919636032956",            // orders & help WhatsApp number
   upiId: "",                           // farmer ji ka UPI ID, e.g. "name@okaxis" — khali = UPI option band
   upiName: "Annadata Fresh Mart",
-  minOrder: 299,
-  freeDeliveryAbove: 499,
-  deliveryCharge: 30,
+  freeFirstOrders: 2,                 // pehle 2 order ki delivery free (offer)
+  freeDeliveryAbove: 299,             // uske baad ₹299+ par delivery free
+  deliveryCharge: 30,                 // ₹299 se kam par (jab tak doori wala charge set nahi hota)
   eveningCutoffHour: 16,               // 4 PM tak order = aaj shaam 6–8 PM
   mapLink: "https://www.google.com/maps/search/?api=1&query=Piprali%2C+Sikar%2C+Rajasthan",
   instagram: "https://www.instagram.com/",  // apna Instagram link daalo
@@ -51,8 +51,8 @@ window.TIMELINE = [
 ];
 
 window.FAQ = [
-  {en:["Which areas of Sikar do you deliver to?","All of Sikar city. Delivery is free on orders of ₹499 or more, otherwise ₹30. If you live within 2 km of our outlet, we waive the fee when we confirm your order."],
-   hi:["सीकर में कहाँ-कहाँ डिलीवरी है?","पूरे सीकर शहर में। ₹499 या उससे ज़्यादा के ऑर्डर पर डिलीवरी फ्री, वरना ₹30। हमारे आउटलेट से 2 किमी के अंदर हैं तो ऑर्डर कन्फर्म करते समय चार्ज माफ़ कर देते हैं।"]},
+  {en:["Which areas of Sikar do you deliver to?","All of Sikar city. There is no minimum order. Your first 2 deliveries are free. After that, delivery is free on orders of ₹299 or more; smaller orders have a small delivery charge, shown before you pay."],
+   hi:["सीकर में कहाँ-कहाँ डिलीवरी है?","पूरे सीकर शहर में। कोई न्यूनतम ऑर्डर नहीं। पहली 2 डिलीवरी फ्री। उसके बाद ₹299 या उससे ज़्यादा के ऑर्डर पर डिलीवरी फ्री; छोटे ऑर्डर पर थोड़ा डिलीवरी चार्ज लगता है, जो पेमेंट से पहले दिखता है।"]},
   {en:["When will my order arrive?","Order by 4 PM for the same evening (6–8 PM). Orders after 4 PM go in the next morning slot (6–8 AM). You choose the slot at checkout."],
    hi:["ऑर्डर कब आएगा?","शाम 4 बजे तक ऑर्डर करें तो उसी शाम 6–8 बजे। 4 बजे के बाद का ऑर्डर अगली सुबह 6–8 बजे। स्लॉट आप चेकआउट पर चुनते हैं।"]},
   {en:["Are the vegetables really chemical-free?","Vegetables from our own farm are grown without chemical sprays, using Sitaram ji's own liquid organic khaad. Items we source from local farmers are marked separately, without the 'Our farm' badge."],
@@ -77,7 +77,7 @@ window.T = {
   heroShop:"Shop today's harvest", heroFarmer:"Meet the farmer",
   f1b:"Since 2010", f1:"chemical-free farming", f2b:"30 bigha", f2:"own farm, Piprali", f3b:"500+", f3:"Sikar families",
   farmPin:"Piprali farm, Sikar", harvestSmall:"Harvested this morning",
-  b1b:"Two slots daily", b1:"6–8 AM and 6–8 PM", b2b:"Free delivery", b2:"On orders of ₹499+", b3b:"No chemical sprays", b3:"Homemade liquid khaad", b4b:"Pay your way", b4:"On delivery or Annadata Wallet",
+  b1b:"Two slots daily", b1:"6–8 AM and 6–8 PM", b2b:"Free delivery", b2:"First 2 orders, then on ₹299+", b3b:"No chemical sprays", b3:"Homemade liquid khaad", b4b:"Pay your way", b4:"On delivery or Annadata Wallet",
   shopTitle:"Today's harvest", shopSub:"Rates are updated every morning.",
   sortRel:"Sort: Relevance", sortLow:"Price: low to high", sortHigh:"Price: high to low", sortOff:"Biggest discount",
   noteFarm:"<b>Harvested this morning</b> at Piprali farm. Order by 4 PM for today's 6–8 PM slot.",
@@ -93,7 +93,7 @@ window.T = {
   footTag:"Farm-fresh, chemical-free vegetables for Sikar.", fShop:"Shop", fHarvest:"Today's harvest", fMember:"Membership", fHelp:"Help", fOrders:"My orders", fRefund:"Refund policy", fTerms:"Terms", fPrivacy:"Privacy", fFollow:"Follow us", fCopy:"Grown near Piprali, Sikar.",
   viewCart:"View cart", cart:"My cart", checkout:"Checkout", emptyCart:"Your cart is empty", emptyCartSub:"Add some fresh vegetables from today's harvest.", startShopping:"Start shopping",
   billDetails:"Bill details", itemsTotal:"Items total", deliveryFee:"Delivery fee", free:"FREE", grandTotal:"Grand total", youSave:"You save",
-  minWarn:"Add ₹{n} more to place the order (minimum ₹299).", freeHint:"Add ₹{n} more for FREE delivery.", freeOk:"You get FREE delivery.",
+  freeFirst:"🎉 FREE delivery on your first {n} orders.", freeFirst1:"🎉 FREE delivery on this order (welcome offer).", freeHint:"Add ₹{n} more for FREE delivery.", freeOk:"You get FREE delivery.",
   kitLine:"Zucchini Recipe Kit (e-book + videos)", proceed:"Proceed to checkout", loginToOrder:"Log in to place order", orWhatsApp:"Order on WhatsApp instead",
   deliverTo:"Delivery details", name:"Full name", phone:"Mobile number (WhatsApp)", address:"House no., street, area", landmark:"Landmark (optional)", slot:"Delivery slot", pay:"Payment",
   payCod:"Pay on delivery", payCodS:"Cash or UPI to the delivery person", payWallet:"Annadata Wallet", payWalletS:"Balance: ₹{n}", payWalletLow:"Balance ₹{n}, not enough for this order", payUpi:"Pay now with UPI", payUpiS:"PhonePe, GPay, Paytm or any UPI app",
@@ -127,7 +127,7 @@ window.T = {
   heroShop:"आज की ताज़ी सब्ज़ी देखें", heroFarmer:"किसान से मिलें",
   f1b:"2010 से", f1:"केमिकल-फ्री खेती", f2b:"30 बीघा", f2:"अपना खेत, पिपराली", f3b:"500+", f3:"सीकर परिवार",
   farmPin:"पिपराली खेत, सीकर", harvestSmall:"आज सुबह तोड़ी गई",
-  b1b:"रोज़ दो स्लॉट", b1:"सुबह 6–8 और शाम 6–8", b2b:"फ्री डिलीवरी", b2:"₹499+ के ऑर्डर पर", b3b:"कोई केमिकल स्प्रे नहीं", b3:"घर की बनी लिक्विड खाद", b4b:"आसान पेमेंट", b4:"डिलीवरी पर या अन्नदाता वॉलेट",
+  b1b:"रोज़ दो स्लॉट", b1:"सुबह 6–8 और शाम 6–8", b2b:"फ्री डिलीवरी", b2:"पहले 2 ऑर्डर, फिर ₹299+ पर", b3b:"कोई केमिकल स्प्रे नहीं", b3:"घर की बनी लिक्विड खाद", b4b:"आसान पेमेंट", b4:"डिलीवरी पर या अन्नदाता वॉलेट",
   shopTitle:"आज की ताज़ी सब्ज़ी", shopSub:"भाव रोज़ सुबह अपडेट होते हैं।",
   sortRel:"क्रम: सामान्य", sortLow:"दाम: कम से ज़्यादा", sortHigh:"दाम: ज़्यादा से कम", sortOff:"सबसे ज़्यादा छूट",
   noteFarm:"<b>आज सुबह तोड़ी गई</b> पिपराली खेत से। शाम 4 बजे तक ऑर्डर करें, आज शाम 6–8 बजे डिलीवरी।",
@@ -143,7 +143,7 @@ window.T = {
   footTag:"सीकर के लिए खेत की ताज़ी, केमिकल-फ्री सब्ज़ी।", fShop:"खरीदें", fHarvest:"आज की सब्ज़ी", fMember:"मेंबरशिप", fHelp:"मदद", fOrders:"मेरे ऑर्डर", fRefund:"रिफंड नीति", fTerms:"शर्तें", fPrivacy:"प्राइवेसी", fFollow:"फॉलो करें", fCopy:"पिपराली, सीकर में उगाई गई।",
   viewCart:"कार्ट देखें", cart:"मेरा कार्ट", checkout:"चेकआउट", emptyCart:"आपका कार्ट खाली है", emptyCartSub:"आज की ताज़ी सब्ज़ी जोड़ें।", startShopping:"खरीदारी शुरू करें",
   billDetails:"बिल", itemsTotal:"सामान का कुल", deliveryFee:"डिलीवरी चार्ज", free:"फ्री", grandTotal:"कुल रकम", youSave:"आपकी बचत",
-  minWarn:"ऑर्डर के लिए ₹{n} और जोड़ें (न्यूनतम ₹299)।", freeHint:"फ्री डिलीवरी के लिए ₹{n} और जोड़ें।", freeOk:"आपको फ्री डिलीवरी मिल रही है।",
+  freeFirst:"🎉 पहले {n} ऑर्डर पर डिलीवरी फ्री।", freeFirst1:"🎉 इस ऑर्डर पर डिलीवरी फ्री (वेलकम ऑफर)।", freeHint:"फ्री डिलीवरी के लिए ₹{n} और जोड़ें।", freeOk:"आपको फ्री डिलीवरी मिल रही है।",
   kitLine:"ज़ुकिनी रेसिपी किट (ई-बुक + वीडियो)", proceed:"चेकआउट करें", loginToOrder:"ऑर्डर के लिए लॉग इन करें", orWhatsApp:"या WhatsApp पर ऑर्डर करें",
   deliverTo:"डिलीवरी की जानकारी", name:"पूरा नाम", phone:"मोबाइल नंबर (WhatsApp)", address:"मकान नं., गली, मोहल्ला", landmark:"पास की पहचान (वैकल्पिक)", slot:"डिलीवरी स्लॉट", pay:"पेमेंट",
   payCod:"डिलीवरी पर पेमेंट", payCodS:"डिलीवरी वाले को कैश या UPI", payWallet:"अन्नदाता वॉलेट", payWalletS:"बैलेंस: ₹{n}", payWalletLow:"बैलेंस ₹{n}, इस ऑर्डर के लिए कम है", payUpi:"अभी UPI से पेमेंट", payUpiS:"PhonePe, GPay, Paytm या कोई भी UPI ऐप",

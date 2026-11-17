@@ -231,13 +231,15 @@ function deliveryHint(sub) {
   if (fl > 0) return S.session && fl === 1 ? t("freeFirst1") : t("freeFirst", { n: fl });
   return left > 0 ? t("freeHint", { n: left }) : t("freeOk");
 }
+S.pin = store.get("af_pin", null);
 function totals() {
   let sub = 0, mrp = 0, count = 0, kit = false;
   for (const [key, q] of Object.entries(S.cart)) {
     const info = lineInfo(key); if (!info) continue;
     sub += info.o.price * q; mrp += (info.o.mrp || info.o.price) * q; count += q; kit = kit || !!info.p.kit;
   }
-  const fee = sub === 0 || freeLeft() > 0 || sub >= C.freeDeliveryAbove ? 0 : C.deliveryCharge;
+  const q = S.quote && S.quote.sub === sub ? S.quote : null;
+  const fee = sub === 0 ? 0 : q ? q.fee : (freeLeft() > 0 || sub >= C.freeDeliveryAbove ? 0 : C.deliveryCharge);
   return { sub, mrp, fee, total: sub + fee, count, kit, lines: Object.keys(S.cart).length };
 }
 function renderCartUI() {
@@ -302,8 +304,8 @@ function renderDrawer() {
   }
   const bill = `<div class="box"><h5>${t("billDetails")}</h5>
     <div class="row"><span>${t("itemsTotal")}</span><span class="num">${tt.mrp > tt.sub ? `<s style="color:#8A938B">${fmt(tt.mrp)}</s> ` : ""}<b>${fmt(tt.sub)}</b></span></div>
-    <div class="row"><span>${t("deliveryFee")}</span><b class="num">${tt.fee ? fmt(tt.fee) : `<span class="save">${t("free")}</span>`}</b></div>
-    <div class="row tot"><span>${t("grandTotal")}</span><span class="num">${fmt(tt.total)}</span></div>
+    <div class="row"><span>${t("deliveryFee")}<small id="billKm" style="display:block;color:var(--ink-2);font-size:12.5px"></small></span><b class="num" id="billFee">${tt.fee ? fmt(tt.fee) : `<span class="save">${t("free")}</span>`}</b></div>
+    <div class="row tot"><span>${t("grandTotal")}</span><span class="num" id="billTotal">${fmt(tt.total)}</span></div>
     ${tt.mrp > tt.sub ? `<div class="row"><span class="save">${t("youSave")}</span><span class="save num">${fmt(tt.mrp - tt.sub)}</span></div>` : ""}</div>`;
   const hint = `<div class="hint"><svg class="i"><use href="#truck"/></svg>${deliveryHint(tt.sub)}</div>`;
   if (S.view === "cart") {
@@ -333,11 +335,92 @@ function renderDrawer() {
       <div class="f" id="fPhone"><label for="cPhone">${t("phone")}</label><input id="cPhone" inputmode="numeric" maxlength="10" autocomplete="tel-national" placeholder="98XXXXXXXX" value="${esc(pr.phone || saved.phone || "")}"><span class="err"></span></div>
       <div class="f" id="fAddr"><label for="cAddr">${t("address")}</label><textarea id="cAddr" rows="2" autocomplete="street-address">${esc(pr.address || saved.address || "")}</textarea><span class="err"></span></div>
       <div class="f"><label for="cLand">${t("landmark")}</label><input id="cLand" value="${esc(pr.landmark || saved.landmark || "")}"></div>
+      <div class="pinbox${S.pin ? " ok" : ""}" id="pinBox"><b>${t("pinTitle")}</b>
+        <div class="pinbtns"><button type="button" class="btn btn-w" id="pinUse">${t("pinUse")}</button><button type="button" class="linkbtn" id="pinPick">${t("pinPick")}</button></div>
+        <div id="pinMap" class="pinmap" hidden></div><small id="pinMsg">${S.pin ? t("pinHelp") : t("pinWhy")}</small><span class="err" id="pinErr"></span></div>
     </div>
     <div class="box"><h5>${t("slot")}</h5><div class="opts">${slots.map((s, i) => `<label class="opt"><input type="radio" name="slot" value="${esc(s.v)}" ${i === 0 ? "checked" : ""}><span><b>${esc(s.l)}</b><small>${esc(s.v)}</small></span></label>`).join("")}</div></div>
     <div class="box"><h5>${t("pay")}</h5><div class="opts">${payOpts.join("")}</div></div>
     ${bill}</form>`;
   foot.innerHTML = `<button class="btn btn-g btn-block" type="button" id="placeBtn">${t("placeOrder", { n: tt.total.toLocaleString("en-IN") })}</button><p class="msg err" id="placeErr" hidden></p>`;
+  if (S.pin) showPinMap(); else refreshQuote();
+}
+
+/* ---------------- delivery location pin ---------------- */
+let pinMap = null, pinMarker = null, qSeq = 0;
+async function showPinMap(center) {
+  const box = $("#pinMap"); if (!box) return;
+  box.hidden = false;
+  try { await AFMap.load(); } catch { $("#pinMsg").textContent = t("errNet"); return; }
+  if (!$("#pinMap")) return;
+  if (pinMap) { pinMap.remove(); pinMap = null; }
+  const c = center || S.pin;
+  pinMap = AFMap.make(box, c || AFMap.SIKAR, c ? 17 : 13);
+  pinMarker = L.marker(c || AFMap.SIKAR, { draggable: true, icon: AFMap.icon("home"), keyboard: true, title: t("pinTitle") }).addTo(pinMap);
+  pinMarker.on("dragend", () => { const p = pinMarker.getLatLng(); setPin([p.lat, p.lng]); });
+  pinMap.on("click", e => { pinMarker.setLatLng(e.latlng); setPin([e.latlng.lat, e.latlng.lng]); });
+  if (c) setPin(c); else $("#pinMsg").textContent = t("pinTap");
+}
+function setPin(p) {
+  S.pin = [+(+p[0]).toFixed(6), +(+p[1]).toFixed(6)]; store.set("af_pin", S.pin);
+  $("#pinBox")?.classList.add("ok"); const m = $("#pinMsg"); if (m) m.textContent = t("pinHelp"); const er = $("#pinErr"); if (er) er.textContent = "";
+  refreshQuote();
+}
+function locateMe() {
+  if (!navigator.geolocation) return showPinMap();
+  $("#pinMsg").textContent = t("pinGetting");
+  navigator.geolocation.getCurrentPosition(
+    pos => showPinMap([pos.coords.latitude, pos.coords.longitude]),
+    () => { $("#pinMsg").textContent = t("pinDenied"); showPinMap(); },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+}
+async function refreshQuote() {
+  if (!sb) return;
+  const seq = ++qSeq, sub = totals().sub; if (!sub) return;
+  const phone = ($("#cPhone")?.value || "").replace(/\D/g, "").slice(-10);
+  let data = null;
+  try { ({ data } = await sb.rpc("delivery_quote", { p_sub: sub, p_lat: S.pin ? S.pin[0] : null, p_lng: S.pin ? S.pin[1] : null, p_phone: /^[6-9]\d{9}$/.test(phone) ? phone : null })); } catch {}
+  if (seq !== qSeq || !data) return;
+  S.quote = { ...data, sub };
+  if (S.session && typeof data.free_left === "number") S.freeLeft = data.free_left;
+  updateBill();
+}
+function updateBill() {
+  const tt = totals(), btn = $("#placeBtn");
+  const f = $("#billFee"); if (f) f.innerHTML = tt.fee ? fmt(tt.fee) : `<span class="save">${t("free")}</span>`;
+  const tot = $("#billTotal"); if (tot) tot.textContent = fmt(tt.total);
+  const k = $("#billKm"); if (k) k.textContent = S.quote && S.quote.km != null && S.view === "checkout" ? t("distKm", { n: S.quote.km, s: S.quote.store || "" }) : "";
+  const oa = !!(S.quote && S.quote.out_of_area);
+  if (btn && !placing) { btn.textContent = t("placeOrder", { n: tt.total.toLocaleString("en-IN") }); btn.disabled = oa; }
+  if (oa && $("#pinMsg")) $("#pinMsg").textContent = t("outArea");
+  renderCartUI();
+}
+
+/* ---------------- live order tracking ---------------- */
+let trk = { id: null, map: null, mk: {}, timer: null, fitted: false };
+async function openTrack(id) {
+  trk.id = id; trk.fitted = false;
+  $("#trackTitle").textContent = t("trackTitle", { n: id }); $("#trackSub").textContent = ""; $("#trackUpd").textContent = "";
+  openLayer($("#trackSheet"));
+  try { await AFMap.load(); } catch { $("#trackSub").textContent = t("errNet"); return; }
+  if (trk.map) { trk.map.remove(); trk.mk = {}; }
+  trk.map = AFMap.make($("#trackMap"), AFMap.SIKAR, 14);
+  clearInterval(trk.timer); trk.timer = setInterval(pollTrack, 10000); pollTrack();
+}
+async function pollTrack() {
+  if (!$("#trackSheet").classList.contains("open")) { clearInterval(trk.timer); return; }
+  const { data, error } = await sb.rpc("order_tracking", { p_id: trk.id });
+  if (error || !data) { $("#trackUpd").textContent = t("errNet"); return; }
+  const put = (k, ll, kind) => { if (!ll) return; if (trk.mk[k]) trk.mk[k].setLatLng(ll); else trk.mk[k] = L.marker(ll, { icon: AFMap.icon(kind) }).addTo(trk.map); };
+  if (data.lat) put("home", [data.lat, data.lng], "home");
+  if (data.store) put("store", [data.store.lat, data.store.lng], "store");
+  const r = data.rider;
+  if (r) put("rider", [r.lat, r.lng], "rider");
+  $("#trackSub").textContent = data.status === "delivered" ? t("st_delivered") + " ✓" : r ? t("trackOn", { n: r.name || t("trackRider") }) + (data.lat ? " · " + t("trackAway", { n: AFMap.km([r.lat, r.lng], [data.lat, data.lng]).toFixed(1) }) : "") : t("trackWait");
+  $("#trackUpd").textContent = r ? t("trackUpd", { s: new Date(r.at).toLocaleTimeString(S.lang === "hi" ? "hi-IN" : "en-IN", { hour: "numeric", minute: "2-digit" }) }) : "";
+  const pts = Object.values(trk.mk).map(m => m.getLatLng());
+  if (pts.length && (!trk.fitted || r)) { trk.map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 17 }); trk.fitted = true; }
+  if (data.status === "delivered" || data.status === "cancelled") clearInterval(trk.timer);
 }
 function waOrderText(order) {
   const lines = order ? order.items.map(i => `• ${i.name} (${i.opt}) × ${i.qty} = ₹${i.price * i.qty}`)
@@ -355,13 +438,15 @@ async function placeOrder() {
   if (!name || !/^[6-9]\d{9}$/.test(phone) || !address) { $("#coForm .bad input, #coForm .bad textarea")?.focus(); return; }
   store.set("af_checkout", { name, phone, address, landmark });
   if (!S.session) { S.afterLogin = "checkout"; return openLogin(); }
+  if (!S.pin) { $("#pinErr").textContent = t("pinNeed"); $("#pinBox").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+  if (S.quote && S.quote.out_of_area) { $("#pinMsg").textContent = t("outArea"); return; }
   const slot = $("input[name=slot]:checked").value, pay = $("input[name=pay]:checked")?.value || "cod";
   const items = Object.entries(S.cart).map(([key, qty]) => { const [id, opt] = key.split("|"); return { id, opt, qty }; });
   let ref = ss.get("af_order_ref"); if (!ref) { ref = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)); ss.set("af_order_ref", ref); }
   const btn = $("#placeBtn"), errEl = $("#placeErr");
   placing = true; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>${t("placing")}`; errEl.hidden = true;
   try {
-    const { data, error } = await sb.rpc("place_order", { p_items: items, p_slot: slot, p_pay: pay, p_name: name, p_phone: phone, p_address: address, p_landmark: landmark, p_client_ref: ref });
+    const { data, error } = await sb.rpc("place_order", { p_items: items, p_slot: slot, p_pay: pay, p_name: name, p_phone: phone, p_address: address, p_landmark: landmark, p_client_ref: ref, p_lat: S.pin[0], p_lng: S.pin[1] });
     if (error) throw error;
     ss.del("af_order_ref");
     S.lastOrder = { ...data, name, phone, address, slot, pay, payLabel: pay };
@@ -374,7 +459,9 @@ async function placeOrder() {
   } catch (e) {
     const m = String(e?.message || "");
     let msg = errText(e);
-    if (m.includes("LOW_BALANCE")) msg = t("payWalletLow", { n: (S.profile?.balance || 0) });
+    if (m.includes("OUT_OF_AREA")) msg = t("outArea");
+    else if (m.includes("BAD_LOCATION")) msg = t("pinNeed");
+    else if (m.includes("LOW_BALANCE")) msg = t("payWalletLow", { n: (S.profile?.balance || 0) });
     else if (m.includes("ITEM_UNAVAILABLE")) { msg = t("errGeneric"); await loadProducts(); }
     else if (m.includes("BAD_DETAILS")) msg = t("errAddr");
     else if (m.includes("LOGIN_REQUIRED") || e?.code === "PGRST301") { S.afterLogin = "checkout"; openLogin(); }
@@ -480,7 +567,7 @@ async function loadProfile() {
   $("#accDot").hidden = false;
 }
 async function loadFreeLeft() {
-  try { const { data } = await sb.rpc("my_delivery_info"); if (data && typeof data.free_left === "number") S.freeLeft = data.free_left; } catch {}
+  try { const { data } = await sb.rpc("my_delivery_info"); if (data && typeof data.free_left === "number") S.freeLeft = data.free_left; if (data && data.lat && !S.pin) S.pin = [data.lat, data.lng]; } catch {}
   renderCartUI();
 }
 async function onSignedIn(session) {
@@ -564,7 +651,7 @@ function orderCard(o) {
   const st = o.status_times || {};
   const when = st.delivered ? t("deliveredOn", { d: dt(st.delivered) }) : t("deliveryOn", { s: o.slot || "" });
   const track = o.status === "cancelled" ? "" : `<div class="trk"><span class="bar" style="width:${Math.max(0, cur) * 25.3}%"></span>${steps.map((k, i) => `<div class="st ${i < cur || (i === cur && k === "delivered") ? "done" : i === cur ? "now" : ""}"><i>${i < cur || (i === cur && k === "delivered") ? "✓" : ""}</i>${t("tr" + (i + 1))}</div>`).join("")}</div>`;
-  const msg = o.status !== "delivered" ? `<div class="msgline">${t("m_" + o.status)}</div>` : "";
+  const msg = (o.status !== "delivered" ? `<div class="msgline">${t("m_" + o.status)}</div>` : "") + (o.status === "out_for_delivery" ? `<button class="btn btn-g btn-block" type="button" data-track="${o.id}" style="margin-top:10px">${t("trackLive")}</button>` : "");
   const rep = S.reportFor === o.id ? `<div class="f" style="margin-top:10px"><textarea id="repText" rows="3" placeholder="${esc(t("reportPh"))}"></textarea><span class="err" id="repErr"></span></div><button class="btn btn-p btn-block" type="button" data-rep-send="${o.id}">${t("reportSend")}</button>`
     : `<p style="margin-top:8px"><button class="linkbtn" type="button" data-rep="${o.id}" style="font-size:14px">${t("report")}</button></p>`;
   return `<div class="ord"><div class="t"><b>#${o.id} · <span class="num">${fmt(o.total)}</span></b><span class="chip ${chipCls(o.status)}">${t("st_" + o.status)}${o.status === "delivered" ? " ✓" : ""}</span></div>
@@ -650,6 +737,7 @@ document.addEventListener("click", e => {
   if ("openOrders" in d) { e.preventDefault(); if (layers.includes($("#cartDrawer"))) closeLayer($("#cartDrawer")); S.view = "cart"; return openAccount("orders"); }
   if (d.rep) { S.reportFor = +d.rep; renderAccount(); setTimeout(() => $("#repText")?.focus(), 50); return; }
   if (d.repSend) return sendReport(+d.repSend);
+  if (d.track) return openTrack(+d.track);
   if ("memStart" in d) { S.memPlan = "saathi"; return renderAccount(); }
   if ("login" in d) { closeLayer($("#accDrawer")); return openLogin(); }
   if (d.tab) { S.accTab = d.tab; S.memPlan = null; return renderAccount(); }
@@ -658,6 +746,8 @@ document.addEventListener("click", e => {
     case "cartBack": S.view = "cart"; return renderDrawer();
     case "toCheckout": if (!S.session) { S.afterLogin = "checkout"; return openLogin(); } S.view = "checkout"; track("checkout"); return renderDrawer();
     case "placeBtn": return placeOrder();
+    case "pinUse": return locateMe();
+    case "pinPick": return showPinMap();
     case "upiRefBtn": return submitUpiRef();
     case "gLogin": return googleLogin();
     case "resendBtn": return sendCode(S.loginEmail);
@@ -671,6 +761,7 @@ document.addEventListener("click", e => {
   }
 });
 $("#ov").addEventListener("click", () => closeLayer());
+document.addEventListener("change", e => { if (e.target.id === "cPhone") refreshQuote(); });
 document.addEventListener("change", e => {
   if (e.target.name === "plan") { S.memPlan = e.target.value; renderAccount(); }
   if (e.target.id === "sortSel") { S.sort = e.target.value; renderGrid(); }

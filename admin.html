@@ -22,6 +22,7 @@ button,.btn{font:inherit;cursor:pointer}
 .tabs button,.btn{border:1.5px solid var(--deep);background:#fff;color:var(--deep);border-radius:999px;padding:7px 15px;font-weight:700;text-decoration:none;display:inline-block}
 .tabs button[aria-selected=true],.btn.p{background:var(--deep);color:#fff}
 .btn.g{background:var(--gold);border-color:var(--gold);color:#fff}.btn.r{border-color:var(--red);color:var(--red)}.btn.s{padding:4px 11px;font-size:14px}
+.smap{height:300px;border-radius:12px;border:1px solid var(--line);margin:10px 0}.slab{display:flex;gap:8px;align-items:center;margin:6px 0}.slab input{width:90px}
 .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px}
 .row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
 .sub{color:var(--muted);font-size:14px}.b{font-weight:700}
@@ -58,7 +59,8 @@ th{font-size:13px;color:var(--muted);font-weight:700}
 <main id="app"><p>Loading…</p></main>
 <div id="pane" onclick="if(event.target===this)this.classList.remove('open')"><div id="paneIn"></div></div>
 <script src="assets/supabase.js"></script>
-<script src="config.js"></script>
+<script src="assets/map.js?v=2"></script>
+<script src="config.js?v=8"></script>
 <script>
 const sb = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce", storageKey: "af-auth" } });
 const $ = s => document.querySelector(s), app = $("#app");
@@ -87,8 +89,8 @@ function google() { sb.auth.signInWithOAuth({ provider: "google", options: { red
 async function logout() { await sb.auth.signOut({ scope: "local" }); location.reload(); }
 
 function render() {
-  app.innerHTML = `<div class="tabs" role="tablist">${[["home", "🏠 Dashboard"], ["orders", "📦 Orders"], ["customers", "👥 Customers"], ["payments", "💰 Payments"], ["visitors", "📊 Visitors"], ["riders", "🛵 Delivery boys"], ["complaints", "⚠️ Shikayat"], ["members", "💳 Membership"], ["products", "🥬 Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
-  ({ home, orders, customers, payments, visitors, riders, complaints, members, products })[tab]();
+  app.innerHTML = `<div class="tabs" role="tablist">${[["home", "🏠 Dashboard"], ["orders", "📦 Orders"], ["customers", "👥 Customers"], ["payments", "💰 Payments"], ["visitors", "📊 Visitors"], ["riders", "🛵 Delivery boys"], ["stores", "🏪 Stores & charge"], ["complaints", "⚠️ Shikayat"], ["members", "💳 Membership"], ["products", "🥬 Sabzi & rate"]].map(([k, l]) => `<button role="tab" aria-selected="${tab === k}" onclick="tab='${k}';render()">${l}</button>`).join("")}</div><div id="body"><p>Loading…</p></div>`;
+  ({ home, orders, customers, payments, visitors, riders, stores, complaints, members, products })[tab]();
 }
 async function names(ids) { const { data } = await sb.from("profiles").select("id,full_name,phone,email").in("id", [...new Set(ids)]); return Object.fromEntries((data || []).map(p => [p.id, p])); }
 
@@ -117,7 +119,7 @@ async function home() {
 }
 const STAGES = { new: ["placed", "awaiting_payment"], confirmed: ["confirmed"], active: ["confirmed", "out_for_delivery"], out: ["out_for_delivery"], delivered: ["delivered"], cancelled: ["cancelled"] };
 async function orders() {
-  await loadRiders();
+  await Promise.all([loadRiders(), loadStores()]);
   let q = sb.from("orders").select("*").order("created_at", { ascending: false }).limit(200);
   if (STAGES[filter]) q = q.in("status", STAGES[filter]);
   const { data, error } = await q; if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
@@ -134,10 +136,10 @@ function orderCardA(o) {
   if (o.status === "out_for_delivery") act = `<span class="sub">🛵 ${esc(rider ? rider.name : (o.rider_email || "—"))}</span> <button class="btn s p" onclick="setStatus(${o.id},'delivered')">📦 Delivered mark karo</button>`;
   if (["placed", "awaiting_payment", "confirmed", "out_for_delivery"].includes(o.status)) act += ` <button class="btn s r" onclick="setStatus(${o.id},'cancelled')">Cancel</button>`;
   if (o.status === "delivered" && !o.paid) act += `<button class="btn s g" onclick="markPaid(${o.id})">💰 Paisa mil gaya</button>`;
-  if (o.delivery_fee > 0 && !["delivered", "cancelled"].includes(o.status)) act += ` <button class="btn s" onclick="waive(${o.id})">2 km ke andar: fee hatao</button>`;
+  if (o.delivery_fee > 0 && !["delivered", "cancelled"].includes(o.status)) act += ` <button class="btn s" onclick="waive(${o.id})">Delivery fee hatao</button>`;
   return `<div class="card"><div class="row"><span class="b">#${o.id} · ${fmt(o.total)} · <a href="#" onclick="openCustomer('${o.user_id}');return false">${esc(o.name)}</a></span><span class="badge ${o.status === "cancelled" ? "n" : ["placed", "awaiting_payment"].includes(o.status) ? "w" : ""}">${ST[o.status] || o.status}</span></div>
     <ul class="items">${(o.items || []).map(i => `<li>${esc(i.name)} ${i.opt ? "(" + esc(i.opt) + ")" : ""} × ${i.qty} = ${fmt(i.price * i.qty)}</li>`).join("")}${o.has_kit ? "<li>🎁 Zucchini recipe kit</li>" : ""}</ul>
-    <div class="sub">📍 ${esc(o.address)}${o.landmark ? ", " + esc(o.landmark) : ""}<br>🕒 ${esc(o.slot)} · order ${dt(o.created_at)}${st.delivered ? " · delivered " + dt(st.delivered) : ""}${rider && o.status !== "out_for_delivery" ? " · 🛵 " + esc(rider.name) : ""}<br>
+    <div class="sub">📍 ${esc(o.address)}${o.landmark ? ", " + esc(o.landmark) : ""}${o.lat ? ` · <a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${o.lat},${o.lng}">pin dekho</a>` : " · <i>pin nahi</i>"}${o.store_id ? `<br>🏪 ${esc((STORES.find(x => x.id === o.store_id) || {}).name || "Store #" + o.store_id)}${o.distance_km ? " · " + esc(o.distance_km) + " km" : ""}` : ""}<br>🕒 ${esc(o.slot)} · order ${dt(o.created_at)}${st.delivered ? " · delivered " + dt(st.delivered) : ""}${rider && o.status !== "out_for_delivery" ? " · 🛵 " + esc(rider.name) : ""}<br>
     📞 <a href="tel:+91${esc(o.phone)}">${esc(o.phone)}</a> · <a target="_blank" rel="noopener" href="https://wa.me/91${esc(o.phone)}?text=${encodeURIComponent("Namaste " + o.name + "! Annadata Fresh Mart: aapka order #" + o.id + " (" + fmt(o.total) + ") confirm hai. Delivery: " + o.slot)}">WhatsApp karo</a><br>
     💰 ${o.pay_method === "cod" ? "Delivery par payment" : o.pay_method === "wallet" ? "Wallet se" : "UPI"} · items ${fmt(o.subtotal)} + delivery ${fmt(o.delivery_fee)} · ${o.paid ? "<b style='color:var(--leaf)'>PAID</b>" : "<b>Paisa baaki</b>"}${o.upi_ref ? " · UPI ref: <b>" + esc(o.upi_ref) + "</b>" : ""}</div>
     <div class="row acts">${act}</div></div>`;
@@ -196,6 +198,74 @@ async function visitors() {
     <h3 class="sec">Gehraai se dekhna ho to</h3>
     <div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><a class="btn g" href="https://clarity.microsoft.com/projects/view/zek0kznidj/dashboard" target="_blank" rel="noopener">🎥 Clarity: recording &amp; heatmap</a><a class="btn" href="https://analytics.google.com/" target="_blank" rel="noopener">📈 Google Analytics</a></div>
     <p class="sub">Yahan kisi ka naam, number ya email save nahi hota, sirf ginti hoti hai. Ek browser ko ek visitor gina jata hai. Naye number 16 Nov 2026 se aane shuru hue hain.</p>`;
+}
+
+/* ---------- stores, delivery charge, rider live map ---------- */
+let STORES = [], DSET = null, smap = null, smk = null, sPin = null, editId = null, rmap = null;
+async function loadStores(force) { if (STORES.length && !force) return; const { data } = await sb.rpc("admin_stores"); STORES = (data && data.stores) || []; DSET = data && data.delivery; return data; }
+async function stores() {
+  const { data, error } = await sb.rpc("admin_stores");
+  if (error) return $("#body").innerHTML = `<p class="err">${esc(error.message)}</p>`;
+  STORES = data.stores || []; DSET = data.delivery || {}; const rl = data.riders || [];
+  const d = DSET, slabs = (d.slabs || []).length ? d.slabs : [{ km: 2, fee: "" }, { km: 5, fee: "" }];
+  $("#body").innerHTML = `
+  <div class="card"><b id="sFormT">🏪 Naya store jodo</b>
+    <p class="sub">Har order apne aap customer ke <b>sabse paas wale store</b> ko jayega. Delivery boy ko wahi store "Pickup" mein dikhega.</p>
+    <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px"><input id="sName" placeholder="Store ka naam (jaise Station Road)"> <input id="sAddr" placeholder="Pata (chhota)"> <input id="sPhone" placeholder="Store phone (optional)" inputmode="numeric" maxlength="10"></div>
+    <p class="sub" style="margin-top:10px"><b>Location:</b> neeche map par store ki jagah tap karo, <b>ya</b> Google Maps ka link / "27.61, 75.14" paste karo, <b>ya</b> store par khade hokar "Meri location" dabao.</p>
+    <div class="row" style="justify-content:flex-start;gap:8px"><input id="sLink" placeholder="Google Maps link ya lat, lng" style="min-width:260px"> <button class="btn s" onclick="pinFromLink()">Link se pin</button> <button class="btn s" onclick="pinFromGps()">📍 Meri location</button></div>
+    <div id="smap" class="smap"></div><p class="sub" id="sPinTxt">Pin abhi nahi laga.</p>
+    <label class="sub"><input type="checkbox" id="sActive" checked> Store chalu hai (orders le)</label>
+    <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px"><button class="btn p" onclick="saveStore()">Store save karo</button> <button class="btn" onclick="editStore(null)">Naya / clear</button></div><p id="sMsg" class="err"></p></div>
+  ${STORES.length ? STORES.map(x => `<div class="card row"><span><b>${esc(x.name)}</b> ${x.active ? "<span class='badge'>Chalu</span>" : "<span class='badge n'>Band</span>"}<br><span class="sub">${esc(x.address || "")} · <a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${x.lat},${x.lng}">map</a></span></span><button class="btn s" onclick="editStore(${x.id})">Badlo</button></div>`).join("") : `<p class="sub">Abhi koi store nahi. Jab tak store nahi jodte, har order par seedha ₹${esc(d.default_fee)} wala niyam chalega.</p>`}
+  <div class="card"><b>🚚 Delivery charge</b>
+    <div class="row" style="justify-content:flex-start;gap:14px;margin-top:8px;flex-wrap:wrap">
+      <label class="sub">Pehle kitne order free <input id="dFree" type="number" min="0" max="10" value="${esc(d.free_first ?? 2)}" style="width:70px"></label>
+      <label class="sub">Is rakam se upar free ₹ <input id="dAbove" type="number" min="0" value="${esc(d.free_above ?? 299)}" style="width:90px"></label>
+      <label class="sub">Location na ho to fee ₹ <input id="dDef" type="number" min="0" value="${esc(d.default_fee ?? 30)}" style="width:80px"></label>
+      <label class="sub">Kitne km tak delivery (khaali = koi limit nahi) <input id="dMax" type="number" min="0" step="0.5" value="${esc(d.max_km ?? "")}" style="width:80px"></label></div>
+    <p class="sub" style="margin-top:10px"><b>Doori ke hisaab se fee</b> (sirf jab order ₹${esc(d.free_above ?? 299)} se kam ho aur free order khatam ho gaye hon). Doori = store se customer tak, raaste ka andaaza.</p>
+    <div id="slabs">${slabs.map(slabRow).join("")}</div>
+    <button class="btn s" onclick="document.getElementById('slabs').insertAdjacentHTML('beforeend', slabRow({}))">+ Ek aur slab</button>
+    <div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn p" onclick="saveDelivery()">Delivery niyam save karo</button></div><p id="dMsg" class="sub"></p></div>
+  <div class="card"><b>🛵 Delivery boys abhi kahan hain</b><p class="sub">${rl.length ? rl.map(r => `${esc(r.name)}: ${new Date(r.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })} par`).join(" · ") : "Pichhle 12 ghante mein kisi ki location nahi aayi. Location tab aati hai jab delivery boy order 'Nikal gaya' karta hai aur rider panel khula rakhta hai."}</p><div id="rmap" class="smap"></div></div>`;
+  try { await AFMap.load(); } catch { return; }
+  smap = AFMap.make($("#smap"), AFMap.SIKAR, 13); smk = null; sPin = null; editId = null;
+  smap.on("click", e => setSPin([e.latlng.lat, e.latlng.lng]));
+  STORES.forEach(x => L.marker([x.lat, x.lng], { icon: AFMap.icon("store"), opacity: x.active ? 1 : .5 }).addTo(smap).bindTooltip(x.name));
+  rmap = AFMap.make($("#rmap"), AFMap.SIKAR, 13);
+  const pts = [];
+  STORES.forEach(x => { L.marker([x.lat, x.lng], { icon: AFMap.icon("store") }).addTo(rmap).bindTooltip(x.name); pts.push([x.lat, x.lng]); });
+  rl.forEach(r => { L.marker([r.lat, r.lng], { icon: AFMap.icon("rider") }).addTo(rmap).bindTooltip(r.name, { permanent: true, direction: "top", offset: [0, -18] }); pts.push([r.lat, r.lng]); });
+  if (pts.length) rmap.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 16 });
+}
+function slabRow(x) { return `<div class="slab"><span class="sub">Store se</span> <input type="number" step="0.5" min="0.5" class="skm" value="${esc(x.km ?? "")}" placeholder="km"> <span class="sub">km tak: ₹</span> <input type="number" min="0" class="sfee" value="${esc(x.fee ?? "")}" placeholder="fee"> <button class="btn s r" onclick="this.parentNode.remove()">Hatao</button></div>`; }
+function setSPin(p) { sPin = [+p[0].toFixed(6), +p[1].toFixed(6)]; if (smk) smk.setLatLng(sPin); else smk = L.marker(sPin, { icon: AFMap.icon("store"), draggable: true }).addTo(smap).on("dragend", () => { const q = smk.getLatLng(); sPin = [+q.lat.toFixed(6), +q.lng.toFixed(6)]; $("#sPinTxt").textContent = "Pin: " + sPin.join(", "); }); smap.setView(sPin, Math.max(smap.getZoom(), 16)); $("#sPinTxt").textContent = "Pin: " + sPin.join(", ") + " (khiska kar theek kar sakte ho)"; }
+function pinFromLink() {
+  const v = $("#sLink").value.trim(); let m = v.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || v.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || v.match(/[?&](?:q|query|ll|destination|center)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i) || v.match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{2,3}\.\d+)\s*$/);
+  if (!m) { $("#sMsg").textContent = /goo\.gl|maps\.app/.test(v) ? "Chhota link (maps.app.goo.gl) se pin nahi nikalta. Link browser mein kholo, phir upar address bar ka lamba link paste karo, ya map par tap karo." : "Is link mein location nahi mili. Map par tap karke pin lagao."; return; }
+  $("#sMsg").textContent = ""; setSPin([+m[1], +m[2]]);
+}
+function pinFromGps() { navigator.geolocation.getCurrentPosition(p => setSPin([p.coords.latitude, p.coords.longitude]), () => $("#sMsg").textContent = "Location permission nahi mili", { enableHighAccuracy: true, timeout: 12000 }); }
+function editStore(id) {
+  const x = STORES.find(s => s.id === id) || {}; editId = id || null;
+  $("#sFormT").textContent = id ? "✏️ Store badlo: " + x.name : "🏪 Naya store jodo";
+  $("#sName").value = x.name || ""; $("#sAddr").value = x.address || ""; $("#sPhone").value = x.phone || ""; $("#sActive").checked = id ? x.active : true; $("#sMsg").textContent = "";
+  if (id) setSPin([x.lat, x.lng]); else { if (smk) { smk.remove(); smk = null; } sPin = null; $("#sPinTxt").textContent = "Pin abhi nahi laga."; }
+  $("#sFormT").scrollIntoView({ behavior: "smooth" });
+}
+async function saveStore() {
+  if (!$("#sName").value.trim()) return $("#sMsg").textContent = "Store ka naam daalo";
+  if (!sPin) return $("#sMsg").textContent = "Map par store ka pin lagao";
+  const { error } = await sb.rpc("admin_save_store", { p_id: editId, p_name: $("#sName").value, p_address: $("#sAddr").value, p_lat: sPin[0], p_lng: sPin[1], p_phone: $("#sPhone").value, p_active: $("#sActive").checked });
+  if (error) return $("#sMsg").textContent = "Save nahi hua: " + error.message;
+  STORES = []; stores();
+}
+async function saveDelivery() {
+  const slabs = [...document.querySelectorAll("#slabs .slab")].map(r => ({ km: +r.querySelector(".skm").value, fee: r.querySelector(".sfee").value })).filter(x => x.km > 0 && x.fee !== "").map(x => ({ km: x.km, fee: +x.fee })).sort((a, b) => a.km - b.km);
+  const p = { free_first: +$("#dFree").value, free_above: +$("#dAbove").value, default_fee: +$("#dDef").value, max_km: $("#dMax").value, slabs };
+  const { error } = await sb.rpc("admin_save_delivery", { p });
+  $("#dMsg").textContent = error ? "Save nahi hua: " + error.message : "✓ Save ho gaya. Naye orders par ye niyam lagenge.";
 }
 async function assign(id, em) { const { error } = await sb.rpc("admin_assign_rider", { p_id: id, p_email: em || null }); if (error) alert(/CONFIRM_FIRST/.test(error.message) ? "Pehle order confirm karo" : error.message); orders(); }
 async function riders() {

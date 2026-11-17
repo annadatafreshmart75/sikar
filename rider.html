@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#1F4D2B">
 <title>Delivery Partner — Annadata Fresh Mart</title>
 <link rel="icon" href="assets/icon-192.png">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=8">
 <style>
 body{background:var(--cream);padding-bottom:40px}
 .rtop{position:sticky;top:0;z-index:20;background:var(--forest);color:#fff;padding:12px 16px calc(12px);display:flex;align-items:center;gap:12px}
@@ -44,16 +44,41 @@ body{background:var(--cream);padding-bottom:40px}
 .confirm h3{font-size:22px;margin-bottom:6px}
 .chk{display:flex;gap:12px;align-items:center;padding:14px;border:2px solid var(--line);border-radius:14px;margin:12px 0;font-weight:700;font-size:16px}
 .chk input{width:24px;height:24px;accent-color:var(--forest)}
+.pick{display:flex;gap:8px;align-items:center;background:#E8F1E4;color:var(--forest);border-radius:12px;padding:9px 12px;margin:8px 0;font-weight:700;font-size:15px}
+.pick small{display:block;font-weight:400;color:var(--ink-2);font-size:13px}
+.gps{display:none;align-items:center;gap:8px;background:#E8F1E4;color:var(--forest);border-radius:12px;padding:8px 12px;margin-bottom:10px;font-weight:700;font-size:14px}
+.gps.on{display:flex}.gps.bad{background:#FBE9DF;color:#8A3A16}
+.gps i{width:10px;height:10px;border-radius:50%;background:currentColor;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+.nav{position:fixed;inset:0;z-index:70;background:#fff;display:none;flex-direction:column}
+.nav.open{display:flex}
+.nav .turn{background:var(--forest);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 14px;display:flex;gap:14px;align-items:center;min-height:92px}
+.nav .turn .ar{font-size:44px;line-height:1}
+.nav .turn b{display:block;font-size:22px;line-height:1.2}
+.nav .turn small{color:#CFE0C5;font-size:14px}
+.nav #navMap{flex:1;min-height:0}
+.nav .bot{padding:12px 14px calc(12px + env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;border-top:1px solid var(--line)}
+.nav .bot .eta b{display:block;font:600 22px Fraunces,serif;color:var(--forest)}
+.nav .bot .eta{font-size:13.5px;color:var(--ink-2);text-transform:none;letter-spacing:0}
+.nav .bot .btn{min-height:48px;padding:0 14px;font-size:15px}
+.nav .snd{position:absolute;right:12px;top:calc(110px + env(safe-area-inset-top));z-index:500;background:#fff;border-radius:999px;padding:8px 12px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.2)}
 </style>
 </head>
 <body>
 <div class="rtop"><img src="assets/logo-h.png" alt="Annadata"><div><b>Delivery Partner</b><small id="who">Annadata Fresh Mart</small></div><div class="sp" id="topBtns"></div></div>
 <main class="rw" id="app"><p class="center">Loading…</p></main>
+<div class="nav" id="nav" role="dialog" aria-label="Navigation">
+  <div class="turn"><div class="ar" id="navAr">🧭</div><div><b id="navTxt">Raasta dhoondh rahe hain…</b><small id="navSub"></small></div></div>
+  <div id="navMap"></div>
+  <button type="button" class="snd" id="navSnd">🔊 Awaaz on</button>
+  <div class="bot"><div class="eta" id="navEta"></div><a class="btn btn-w" id="navG" target="_blank" rel="noopener">Google Maps</a><button type="button" class="btn btn-p" id="navClose">Band karo</button></div>
+</div>
 <div class="confirm" id="confirm"><div class="in" id="confirmIn"></div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="assets/supabase.js"></script>
-<script src="config.js?v=5"></script>
+<script src="assets/map.js?v=2"></script>
+<script src="config.js?v=8"></script>
 <script>
 (() => {
 const C = window.CONFIG;
@@ -84,7 +109,7 @@ async function load() {
   if (error) { if (!orders.length) app.innerHTML = `<p class="center">Load nahi hua. Internet check karo. <button class="linkbtn" id="retry">Dobara</button></p>`; return; }
   const ids = new Set(data.filter(o => !["delivered", "cancelled"].includes(o.status)).map(o => o.id));
   if (known) { const fresh = [...ids].filter(i => !known.has(i)); if (fresh.length) alertNew(fresh); }
-  known = ids; orders = data; render();
+  known = ids; orders = data; render(); syncGps();
 }
 function alertNew(ids) {
   toast(`Naya order aaya: #${ids.join(", #")}`);
@@ -97,7 +122,7 @@ function render() {
   const open = orders.filter(o => !["delivered", "cancelled"].includes(o.status)), done = orders.filter(o => ["delivered", "cancelled"].includes(o.status));
   const cash = done.filter(o => o.status === "delivered" && o.pay_method === "cod").reduce((a, o) => a + o.total, 0);
   const list = tab === "open" ? open : done;
-  app.innerHTML = `<div class="sum"><div><b>${open.length}</b>Baaki</div><div><b>${done.filter(o => o.status === "delivered").length}</b>Deliver kiye</div><div><b>${fmt(cash)}</b>Cash (aaj)</div></div>
+  app.innerHTML = `<div class="gps${gps.on ? " on" : ""}${gps.err ? " bad" : ""}" id="gpsBar"><i></i><span id="gpsTxt">${gpsText()}</span></div><div class="sum"><div><b>${open.length}</b>Baaki</div><div><b>${done.filter(o => o.status === "delivered").length}</b>Deliver kiye</div><div><b>${fmt(cash)}</b>Cash (aaj)</div></div>
   <div class="tabs2"><button type="button" data-tab="open" aria-selected="${tab === "open"}">Deliver karne hain (${open.length})</button><button type="button" data-tab="done" aria-selected="${tab === "done"}">Ho gaye (${done.length})</button></div>` +
   (list.length ? list.map(card).join("") : `<p class="center">${tab === "open" ? "Abhi koi order nahi. Naya order aate hi yahan dikhega aur awaaz aayegi." : "Aaj abhi koi delivery nahi hui."}</p>`) +
   `<p class="msg">Har 30 second mein apne aap refresh hota hai · <button class="linkbtn" id="retry">Abhi refresh</button></p>`;
@@ -105,13 +130,16 @@ function render() {
 function card(o) {
   const closed = ["delivered", "cancelled"].includes(o.status);
   const cod = o.pay_method === "cod" && !o.paid;
-  const map = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((o.address || "") + " " + (o.landmark || "") + " Sikar Rajasthan")}`;
+  const map = o.lat ? AFMap.gmapsDir(o.lat, o.lng) : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((o.address || "") + " " + (o.landmark || "") + " Sikar Rajasthan")}`;
+  const pick = o.store && !closed ? `<div class="pick">🏪<div>Pickup: ${esc(o.store.name)}${o.store.address ? `<small>${esc(o.store.address)}</small>` : ""}</div></div>` : "";
   return `<article class="rc" data-o="${o.id}"><div class="h"><b>#${o.id} · ${esc(o.name)}</b><span class="chip ${o.status === "delivered" ? "ok" : o.status === "cancelled" ? "no" : "wait"}">${{ placed: "Naya", confirmed: "Ready", out_for_delivery: "Raste mein", delivered: "Delivered " + tm(o.status_times?.delivered), cancelled: "Cancelled", awaiting_payment: "Payment baaki" }[o.status] || o.status}</span></div>
-    <span class="slot">🕒 ${esc(o.slot)}</span>
+    <span class="slot">🕒 ${esc(o.slot)}</span>${o.distance_km ? ` <span class="chip">${esc(o.distance_km)} km</span>` : ""}
+    ${pick}
     <ul class="its">${(o.items || []).map(i => `<li>${esc(i.name)} ${i.opt ? "(" + esc(i.opt) + ")" : ""} × ${i.qty}</li>`).join("")}${o.has_kit ? "<li>🎁 Zucchini recipe card saath dena</li>" : ""}</ul>
     ${closed ? "" : `<div class="addr">📍 ${esc(o.address)}${o.landmark ? `<small>Landmark: ${esc(o.landmark)}</small>` : ""}</div>`}
     <div class="money ${cod ? "cod" : "ok"}"><span>${cod ? "Customer se lena hai" : "Payment ho chuka"}</span><span>${cod ? fmt(o.total) : "✓ " + fmt(o.total)}</span></div>
-    ${closed ? "" : `<div class="acts"><a class="btn btn-w" href="${map}" target="_blank" rel="noopener">🗺️ Map kholo</a><a class="btn btn-w" href="tel:+91${esc(o.phone)}">📞 Call karo</a>
+    ${closed ? "" : `<div class="acts">${o.status !== "out_for_delivery" && o.store ? `<button class="btn btn-w wide" type="button" data-nav="${o.id}" data-to="store">🏪 Store tak raasta</button>` : ""}
+      ${o.lat ? `<button class="btn btn-w" type="button" data-nav="${o.id}" data-to="home">🧭 Ghar tak raasta</button>` : `<a class="btn btn-w" href="${map}" target="_blank" rel="noopener">🗺️ Map kholo</a>`}<a class="btn btn-w" href="tel:+91${esc(o.phone)}">📞 Call karo</a>
       ${o.status === "out_for_delivery" ? `<button class="btn btn-p wide" type="button" data-deliver="${o.id}">✅ Deliver ho gaya</button>` : `<button class="btn btn-g wide" type="button" data-go="${o.id}">🛵 Nikal gaya (raste mein)</button>`}</div>`}
   </article>`;
 }
@@ -126,17 +154,94 @@ async function setStatus(id, status, cash) {
   const { error } = await sb.rpc("rider_set_status", { p_id: id, p_status: status, p_cash: !!cash });
   if (error) return toast(/CLOSED/.test(error.message) ? "Ye order band ho chuka hai" : "Nahi hua, dobara try karo");
   toast(status === "delivered" ? "Badhiya! Delivered ✓" : "Customer ko dikh raha hai: raste mein");
+  if (status === "out_for_delivery") { startGps(); const o = orders.find(x => x.id === id); if (o && o.lat) openNav(id, "home"); }
   load();
 }
+/* ---------- live GPS: sent every 15 s while an order is on the way ---------- */
+const gps = { on: false, err: "", watch: null, last: null, sent: 0, lock: null };
+function gpsText() { return gps.err ? gps.err : gps.last ? "📡 Aapki location customer ko dikh rahi hai. Ye page khula rakho." : "📡 Location chalu ho rahi hai…"; }
+function setGpsBar() { const b = $("#gpsBar"); if (!b) return; b.className = "gps" + (gps.on ? " on" : "") + (gps.err ? " bad" : ""); $("#gpsTxt").textContent = gpsText(); }
+function syncGps() { if (orders.some(o => o.status === "out_for_delivery")) startGps(); else stopGps(); }
+function startGps() {
+  if (gps.on) return; if (!navigator.geolocation) { gps.err = "Is phone mein GPS nahi chal raha"; setGpsBar(); return; }
+  gps.on = true; gps.err = ""; setGpsBar(); keepAwake();
+  gps.watch = navigator.geolocation.watchPosition(onPos, er => { gps.err = er.code === 1 ? "⚠️ Location ki permission do (browser settings → Location → Allow)" : "⚠️ GPS signal nahi mil raha"; setGpsBar(); },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+}
+function stopGps() { if (!gps.on) return; navigator.geolocation.clearWatch(gps.watch); gps.on = false; gps.last = null; setGpsBar(); if (gps.lock) { gps.lock.release().catch(() => {}); gps.lock = null; } }
+async function keepAwake() { try { if ("wakeLock" in navigator && !gps.lock) { gps.lock = await navigator.wakeLock.request("screen"); gps.lock.addEventListener("release", () => { gps.lock = null; }); } } catch {} }
+function onPos(p) {
+  const c = p.coords; gps.last = [c.latitude, c.longitude]; gps.err = ""; setGpsBar();
+  const now = Date.now();
+  if (now - gps.sent > 15000) { gps.sent = now; sb.rpc("rider_ping", { p_lat: c.latitude, p_lng: c.longitude, p_acc: c.accuracy, p_heading: c.heading }).then(() => {}, () => {}); }
+  if (nav.open) navUpdate(gps.last);
+}
+
+/* ---------- in-panel turn-by-turn navigation ---------- */
+const nav = { open: false, map: null, me: null, dest: null, line: null, r: null, idx: 0, spoken: {}, voice: true, rerouteAt: 0, routing: false };
+async function openNav(id, to) {
+  const o = orders.find(x => x.id === id); if (!o) return;
+  const dest = to === "store" && o.store ? [o.store.lat, o.store.lng] : [o.lat, o.lng];
+  nav.dest = dest; nav.r = null; nav.spoken = {}; nav.open = true;
+  $("#nav").classList.add("open"); $("#navTxt").textContent = "Raasta dhoondh rahe hain…"; $("#navSub").textContent = to === "store" ? "🏪 " + o.store.name : "🏠 " + o.name + (o.landmark ? " · " + o.landmark : "");
+  $("#navAr").textContent = "🧭"; $("#navEta").textContent = ""; $("#navG").href = AFMap.gmapsDir(dest[0], dest[1]);
+  startGps(); keepAwake();
+  try { await AFMap.load(); } catch { $("#navTxt").textContent = "Map load nahi hua. Google Maps dabao."; return; }
+  if (nav.map) nav.map.remove();
+  nav.map = AFMap.make($("#navMap"), gps.last || dest, 17); nav.me = null; nav.line = null;
+  L.marker(dest, { icon: AFMap.icon(to === "store" ? "store" : "home") }).addTo(nav.map);
+  if (gps.last) navUpdate(gps.last);
+}
+function closeNav() { nav.open = false; $("#nav").classList.remove("open"); try { speechSynthesis.cancel(); } catch {} syncGps(); }
+async function navRoute(from) {
+  if (nav.routing) return; nav.routing = true; nav.rerouteAt = Date.now();
+  try {
+    nav.r = await AFMap.route(from, nav.dest); nav.idx = 0; nav.spoken = {};
+    if (nav.line) nav.line.remove();
+    nav.line = L.polyline(nav.r.coords, { color: "#1A73E8", weight: 7, opacity: .85 }).addTo(nav.map);
+  } catch { nav.r = null; $("#navTxt").textContent = "Raasta nahi mila. Google Maps dabao."; $("#navAr").textContent = "⚠️"; }
+  nav.routing = false;
+}
+async function navUpdate(p) {
+  if (!nav.map) return;
+  if (!nav.me) nav.me = L.marker(p, { icon: AFMap.icon("me"), zIndexOffset: 1000 }).addTo(nav.map); else nav.me.setLatLng(p);
+  nav.map.panTo(p, { animate: true });
+  const left = AFMap.km(p, nav.dest) * 1000;
+  if (left < 35) { $("#navAr").textContent = "🏁"; $("#navTxt").textContent = "Pahunch gaye!"; $("#navEta").innerHTML = "<b>0 m</b>Customer ko call karo agar zaroorat ho"; if (!nav.spoken.arrive) { nav.spoken.arrive = 1; speak("arrive", "Pahunch gaye"); } return; }
+  if (!nav.r && !nav.routing) await navRoute(p);
+  if (!nav.r) return;
+  const sn = AFMap.snapSeg(nav.r.coords, p);
+  if (sn.off > 0.06 && Date.now() - nav.rerouteAt > 15000) { await navRoute(p); if (!nav.r) return; return navUpdate(p); }
+  const seg = sn.seg, C2 = nav.r.coords;
+  const next = nav.r.steps.find(s => s.idx > seg && s.type !== "depart") || nav.r.steps[nav.r.steps.length - 1];
+  const toTurn = (AFMap.km(sn.at, C2[seg + 1] || C2[seg]) + AFMap.alongKm(C2, seg + 1, next.idx)) * 1000;
+  const remain = AFMap.km(sn.at, C2[seg + 1] || C2[seg]) + AFMap.alongKm(C2, seg + 1, C2.length - 1);
+  $("#navAr").textContent = AFMap.arrow(next);
+  $("#navTxt").textContent = AFMap.say(next, toTurn);
+  $("#navSub").textContent = next.name ? "➜ " + next.name : $("#navSub").textContent;
+  $("#navEta").innerHTML = `<b>${remain < 1 ? Math.round(remain * 1000) + " m" : remain.toFixed(1) + " km"}</b>~${Math.max(1, Math.round(remain / 0.35))} min`;
+  const key = nav.r.steps.indexOf(next);
+  if (toTurn < 150 && !nav.spoken[key + "n"]) { nav.spoken[key + "n"] = 1; speak(key + "n", AFMap.say(next, toTurn)); }
+  else if (toTurn < 600 && toTurn > 300 && !nav.spoken[key + "f"]) { nav.spoken[key + "f"] = 1; speak(key + "f", AFMap.say(next, toTurn)); }
+}
+function speak(k, text) {
+  if (!nav.voice || !("speechSynthesis" in window)) return;
+  try { const u = new SpeechSynthesisUtterance(text); u.lang = "hi-IN"; u.rate = 0.95; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && gps.on) keepAwake(); });
+
 document.addEventListener("click", async e => {
   const t = e.target.closest("button,a"); if (!t) { if (e.target.id === "confirm") $("#confirm").classList.remove("open"); return; }
   if (t.dataset.tab) { tab = t.dataset.tab; return render(); }
   if (t.dataset.go) return setStatus(+t.dataset.go, "out_for_delivery");
   if (t.dataset.deliver) return askDeliver(+t.dataset.deliver);
+  if (t.dataset.nav) return openNav(+t.dataset.nav, t.dataset.to);
   switch (t.id) {
     case "cNo": return $("#confirm").classList.remove("open");
     case "cYes": $("#confirm").classList.remove("open"); return setStatus(+t.dataset.id, "delivered", $("#cash")?.checked ?? true);
     case "retry": return load();
+    case "navClose": return closeNav();
+    case "navSnd": nav.voice = !nav.voice; $("#navSnd").textContent = nav.voice ? "🔊 Awaaz on" : "🔇 Awaaz off"; return;
     case "alertBtn": try { const p = await Notification.requestPermission(); toast(p === "granted" ? "Alert on ho gaya 🔔" : "Phone settings mein notification allow karo"); } catch { toast("Is phone par notification nahi chalta, awaaz aayegi"); } return;
     case "outBtn": await sb.auth.signOut({ scope: "local" }); location.reload(); return;
     case "g": return sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.href.split("?")[0].split("#")[0], queryParams: { prompt: "select_account" } } });
